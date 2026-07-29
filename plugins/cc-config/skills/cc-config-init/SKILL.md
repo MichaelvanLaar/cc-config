@@ -220,6 +220,8 @@ Structure:
 
 ## Context files
 
+<!-- cc-config: context-toc-registered -->
+
 <Add this section only if a context/ folder was created in Step 2. Skills discover
 and load these files on demand — they are not pre-loaded. One row per file, with a
 short summary drawn from the file's content (10–20 words).
@@ -232,6 +234,12 @@ preferred — all corporate copy" beats "Writing style guidelines"):>
 | Label   | File                | Summary                 |
 | ------- | ------------------- | ----------------------- |
 | <label> | `context/<name>.md` | TODO: brief description |
+
+The `<!-- cc-config: context-toc-registered -->` comment is load-bearing, not
+decorative — it tells `scripts/sync-config-table.sh` that these files are already
+registered here with real summaries, so it must not also list them in
+`## Key Config Files` with a generic placeholder. Always include it whenever this
+section is created, and keep it if the section is edited later.
 
 ## References
 
@@ -390,6 +398,16 @@ This needs to be run once per clone. Note this in the summary (Step 7) so the us
 
 **Important:** If the project already uses Husky or another hook manager, skip this entire step and note it in the summary. The sync script would conflict with existing hook infrastructure.
 
+### 6e: Write the audit baseline marker
+
+Add `<!-- cc-config: last-optimize-run: YYYY-MM-DD <sha> -->` to CLAUDE.md (today's date via
+`date +%Y-%m-%d`, current commit via `git rev-parse HEAD` — if the repo has no commits yet,
+use `HEAD` as a harmless placeholder; the bundled hook only reads a SHA it can resolve). Place
+it near the `## Key Config Files` table. This gives `cc-config`'s bundled `SessionStart` hook
+(`plugins/cc-config/hooks/check-optimize-staleness.sh`) a baseline from the very first commit,
+so it can later remind the user to run `/cc-config-optimize` once the project has drifted —
+see that skill's "Audit staleness reminder" section for the full mechanism.
+
 ## Step 7: Present summary
 
 After creating all files, give the user a concise summary:
@@ -414,7 +432,8 @@ After creating all files, give the user a concise summary:
    - The skills automatically store project-specific observations to `.claude/learnings.md` at the end of each run and recall them at the start of the next — no manual action required.
    - When the user corrects a mistake, Claude also appends a correction to `.claude/learnings.md` instead of modifying CLAUDE.md directly.
    - Running `/cc-config-optimize` periodically reviews the file and proposes promoting recurring patterns into CLAUDE.md, skills, or hooks; one-off entries get deleted.
-8. Suggest committing the new config files to git.
+8. If the Key Config Files auto-sync was set up (Step 6), also mention: `cc-config`'s bundled `SessionStart` hook will automatically nudge to run `/cc-config-optimize` once the project has drifted noticeably from today's baseline (default: 20+ commits or 14+ days with new activity) — no setup needed, it fires in any project the plugin is active in.
+9. Suggest committing the new config files to git.
 
 ## What NOT to do
 

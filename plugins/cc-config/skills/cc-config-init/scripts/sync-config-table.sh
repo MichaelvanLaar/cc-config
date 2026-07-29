@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# sync-config-table-version: 3
+# sync-config-table-version: 6
 # Keeps the "Key Config Files" table in CLAUDE.md in sync with the filesystem.
 # - Removes rows for files that no longer exist
 # - Appends rows for new config files with a placeholder description
@@ -12,6 +12,31 @@
 # `plugins/` scan is a no-op. Do not fork it per project — /cc-config-optimize
 # compares the version marker above against the plugin's copy and offers to
 # refresh, and local forks would be flagged as drift.
+#
+# One scan is content-guarded rather than directory-guarded: `context/` files
+# are skipped entirely when CLAUDE.md carries the
+# `<!-- cc-config: context-toc-registered -->` marker, since that marker means
+# the project already registers those files in its own `## Context files`
+# table (cc-config-init Step 3, cc-content-onboarding Step 5) — listing them
+# again here would just duplicate that table under a generic "TODO" summary.
+#
+# This script can only judge "is this a config-shaped file" (matches a scanned
+# directory/extension), never "is this file important enough to belong in a
+# lean CLAUDE.md" — that call needs human/agent judgment, which is what
+# /cc-config-optimize is for. When that skill decides a matched file isn't
+# worth a row, deleting the row alone doesn't stick: the file still matches a
+# scan on the next run and gets silently re-added with a placeholder. To make
+# a demotion stick (while staying reversible), /cc-config-optimize records it
+# in a `key-config-excluded` HTML comment block anywhere in CLAUDE.md:
+#
+#   <!-- cc-config: key-config-excluded
+#   path/to/file.ext — one-line reason — YYYY-MM-DD
+#   -->
+#
+# Any path listed there is dropped from the table regardless of which scan
+# matched it. Nothing here prunes stale entries or judges whether an excluded
+# file has since grown important again — that periodic reconsideration is
+# also /cc-config-optimize's job, not this script's.
 
 set -euo pipefail
 
@@ -82,16 +107,17 @@ if [[ -d "$ROOT/.claude/skills" ]]; then
   done < <(find "$ROOT/.claude/skills" -maxdepth 2 -name 'SKILL.md' -type f -print0 2>/dev/null | sort -z)
 fi
 
-# plugins/ manifests and skills (plugin repos)
+# plugins/ manifests, skills, and bundled hooks (plugin repos)
 if [[ -d "$ROOT/plugins" ]]; then
   while IFS= read -r -d '' f; do
     relpath="${f#$ROOT/}"
     config_files+=("$relpath")
-  done < <(find "$ROOT/plugins" -type f \( -name 'plugin.json' -o -name 'SKILL.md' \) -print0 2>/dev/null | sort -z)
+  done < <(find "$ROOT/plugins" -type f \( -name 'plugin.json' -o -name 'SKILL.md' -o -path '*/hooks/*.json' -o -path '*/hooks/*.sh' \) -print0 2>/dev/null | sort -z)
 fi
 
-# context/ reference files
-if [[ -d "$ROOT/context" ]]; then
+# context/ reference files — skipped when CLAUDE.md carries the
+# context-toc-registered marker (see header comment above).
+if [[ -d "$ROOT/context" ]] && ! grep -qF '<!-- cc-config: context-toc-registered -->' "$CLAUDE_MD"; then
   while IFS= read -r -d '' f; do
     relpath="${f#$ROOT/}"
     config_files+=("$relpath")
@@ -119,6 +145,40 @@ config_files=("${filtered_files[@]}")
 
 # Sort config files, dropping duplicates that overlapping scans may have added
 mapfile -t sorted_files < <(printf '%s\n' "${config_files[@]}" | sort -u)
+
+# Drop paths listed in the key-config-excluded block (see header comment).
+# Format per line: <path> — <reason> — <date>; only the path before the first
+# em-dash is read, so reason/date wording never has to match anything here.
+excluded_files=()
+in_exclude_block=false
+while IFS= read -r line; do
+  if [[ "$line" == *"<!-- cc-config: key-config-excluded"* ]]; then
+    in_exclude_block=true
+    continue
+  fi
+  if $in_exclude_block; then
+    if [[ "$line" == *"-->"* ]]; then
+      in_exclude_block=false
+      continue
+    fi
+    path="${line%%—*}"
+    path="${path#"${path%%[![:space:]]*}"}"
+    path="${path%"${path##*[![:space:]]}"}"
+    [[ -n "$path" ]] && excluded_files+=("$path")
+  fi
+done < "$CLAUDE_MD"
+
+if ((${#excluded_files[@]})); then
+  remaining_files=()
+  for file in "${sorted_files[@]}"; do
+    excluded=false
+    for ex in "${excluded_files[@]}"; do
+      [[ "$file" == "$ex" ]] && { excluded=true; break; }
+    done
+    $excluded || remaining_files+=("$file")
+  done
+  sorted_files=("${remaining_files[@]}")
+fi
 
 # Parse existing descriptions from CLAUDE.md
 declare -A descriptions

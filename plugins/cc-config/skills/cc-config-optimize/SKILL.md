@@ -114,6 +114,42 @@ Check for these anti-patterns:
 - For each file path referenced (via `@`-import, the `## Context files` table, or inline mention outside those two), verify with `test -f` that it resolves. Flag broken references.
 - Flag stack/version claims that contradict the actual dependency manifest (e.g., CLAUDE.md says "Node 16" but `package.json` `engines` says `>=20`).
 
+### 2a-bis: Key Config Files table hygiene
+
+`sync-config-table.sh` (v5+) can only judge whether a file is _config-shaped_ (it matched a
+scanned directory/extension) — never whether it's _important enough_ for a lean CLAUDE.md to
+carry a row for. That importance call is this skill's job, not the script's. Two things to
+check every audit:
+
+**Stale placeholder rows.** Grep the table for `TODO: add description`. For each match, decide:
+
+- The file is genuinely worth a row → write the real one-line purpose.
+- The file isn't worth tracking in this table at all (e.g. it's already documented elsewhere in
+  CLAUDE.md, or it's boilerplate nobody needs to orient on) → don't just delete the row. The
+  script rebuilds the table from the filesystem on every commit, so a bare deletion gets the row
+  silently re-added with the same placeholder next time the file is touched. Instead, add it to
+  the `key-config-excluded` block (create the block if absent, anywhere in CLAUDE.md):
+
+  ```markdown
+  <!-- cc-config: key-config-excluded
+  path/to/file.ext — one-line reason — YYYY-MM-DD
+  -->
+  ```
+
+  The path must match exactly what the table used (repo-relative, matching the script's own
+  path construction). The reason and date are for human/agent context only — the script only
+  reads the path before the first em-dash.
+
+**Excluded-list review.** If a `key-config-excluded` block exists, re-examine every entry:
+
+- If the referenced path no longer exists on disk, remove that entry — it's dead weight.
+- If the file has grown in scope or importance since it was excluded (check `git log` for
+  significant recent activity, or judge from its current content) such that a row would now
+  earn its keep, remove the entry. The next sync run will pick the file back up automatically
+  and add it with a placeholder purpose — treat that placeholder the same way as any other
+  stale-TODO finding above (write the real description, don't leave it).
+- Otherwise leave the entry as-is; don't re-litigate a still-valid exclusion every audit.
+
 ### 2b: AGENTS.md audit
 
 - Does it exist? Should it? (yes if multiple AI tools are used in the project)
@@ -321,6 +357,10 @@ Organize findings into three categories:
 - `DESIGN.md` present at project root but not referenced via `@DESIGN.md` in CLAUDE.md (Claude won't apply the design system without the pointer)
 - Context files present in the registered context location but no `## Context files` table in CLAUDE.md — skills cannot discover context files without this table
 - `## Context files` table has malformed rows (not `Label | File | Summary`), duplicate Label/File values, or File paths that don't resolve to an existing file
+- `## Context files` table exists but is missing the `<!-- cc-config: context-toc-registered -->` marker comment right after the heading (v4+ `sync-config-table.sh` greps for this exact string, not the heading text, to decide whether `context/` files belong in `## Key Config Files` too — without the marker, the sync script will re-list every context file there with a generic placeholder, duplicating the registered table). Add the marker; don't rename or reword it.
+- `## Key Config Files` table lists individual `context/*.md` files with a generic/placeholder Purpose even though a populated `## Context files` table already registers them with real summaries — a sign the marker is missing or `sync-config-table.sh` predates v4
+- `## Key Config Files` table has one or more `TODO: add description` rows (see 2a-bis) — write the real description, or move the file to the `key-config-excluded` block if it's not worth a row at all
+- `key-config-excluded` block (see 2a-bis) has an entry whose path no longer exists, or whose file has demonstrably grown important enough to reconsider
 - Headroom installed but `.headroom/` not in `.gitignore`: machine-local Headroom files (session caches, `.headroom/CLAUDE.local.md`) must not be committed — they are per-machine and will break other clones
 - True duplicate content across nested CLAUDE.md files in a hierarchical tree (see 2i) — should live once at the shallowest common ancestor
 
@@ -397,8 +437,38 @@ After all changes:
 4. Recompute the config health score from whatever findings remain unresolved and report the before/after (e.g. "Config health: 62/100 → 91/100").
 5. If learnings were reviewed: report how many entries were promoted, how many deleted, and how many remain.
 6. Note anything you deliberately left unchanged and why.
-7. Suggest running `/cc-config-optimize` again periodically (e.g., after major features, after a few weeks of work) to prevent config drift.
-8. Remind the user to commit the changes.
+7. Update the audit marker in CLAUDE.md so the bundled `SessionStart` staleness hook (see
+   "Audit staleness reminder" below) has a fresh baseline to compare future commits against:
+
+   ```bash
+   date +%Y-%m-%d      # today's date
+   git rev-parse HEAD  # current commit SHA
+   ```
+
+   Write or replace the line `<!-- cc-config: last-optimize-run: YYYY-MM-DD <sha> -->`
+   anywhere in CLAUDE.md (reuse the existing line if one is already present, e.g. right after
+   the `## Key Config Files` table, alongside `key-config-excluded` if that block exists —
+   don't scatter multiple copies of this marker across the file). This step runs even if this
+   audit found nothing to fix — a clean audit still resets the baseline.
+
+8. Suggest running `/cc-config-optimize` again periodically (e.g., after major features, after a few weeks of work) to prevent config drift. Mention that the bundled `SessionStart` hook will also nudge automatically once enough commits accumulate since the marker just written, so this is a backstop, not the primary way it's kept current.
+9. Remind the user to commit the changes.
+
+### Audit staleness reminder
+
+`cc-config` ships a `SessionStart` hook (`plugins/cc-config/hooks/check-optimize-staleness.sh`,
+declared in `plugins/cc-config/hooks/hooks.json`) that fires in every project the plugin is
+active in — no per-repo `.claude/settings.json` wiring needed, since plugin-declared hooks
+apply automatically wherever the plugin is installed. On session start it reads the
+`last-optimize-run` marker this step writes, compares it against the repo's current commit
+count and date, and — only if the project has drifted noticeably since that baseline (default
+thresholds: 20+ commits, or 14+ days with at least one new commit) — emits a short reminder
+suggesting `/cc-config-optimize`. It never blocks anything and stays silent otherwise,
+including in repos that don't use `cc-config` at all (it only speaks up if it also finds
+`scripts/sync-config-table.sh`, i.e. clear evidence the project already opted in).
+This step is what keeps that hook's comparison meaningful — without a fresh marker, every
+session in an active repo would eventually trip the threshold and nag regardless of how
+recently an audit actually ran.
 
 ## Common optimization patterns
 
