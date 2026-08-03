@@ -1,5 +1,5 @@
 ---
-name: cc-config-init
+name: bootstrapping-config
 description: Bootstrap a best-practice Claude Code configuration for a new or unconfigured project. Use this skill when a user asks to set up Claude Code, initialize a project, create a CLAUDE.md, or configure permissions/hooks/settings for the first time. Also use when the user says things like "set up this project", "configure Claude Code", "bootstrap config", or "better /init". This skill replaces the built-in /init with a leaner, more opinionated setup grounded in current best practices.
 allowed-tools: Read, Write, Edit, Bash, Grep, Glob
 argument-hint: "[optional: brief project description]"
@@ -26,7 +26,7 @@ If the file does not exist, proceed without mention.
 Before creating any files, understand what you're working with.
 
 1. Check if a git repo exists. If not, do NOT create one — just note it for the user.
-2. Look for existing config: `CLAUDE.md`, `AGENTS.md`, `.claude/`, `.mcp.json`, `context/`. If any exist, tell the user this skill is for fresh setups and suggest using `/cc-config-optimize` instead.
+2. Look for existing config: `CLAUDE.md`, `AGENTS.md`, `.claude/`, `.mcp.json`, `context/`. If any exist, tell the user this skill is for fresh setups and suggest using `/auditing-config` instead.
 3. Scan for clues about the project. Cover both code and content projects:
    - **Code**: `package.json`, `composer.json`, `Cargo.toml`, `pyproject.toml`, `go.mod`, `Makefile`, `Gemfile`, `pom.xml`, `build.gradle`, any `*.sln` or `*.csproj` files.
    - **Content / static sites / docs**: `hugo.toml`, `config.toml`, `config.yaml` (Hugo), `_config.yml` (Jekyll), `astro.config.*`, `.eleventy.js`, `mkdocs.yml`, `content/`, `articles/`, `posts/`, `_posts/`, dominant `.md` files, knowledge base or style guide files (`STYLE.md`, `style-guide.md`).
@@ -366,7 +366,7 @@ Include only files that actually exist and are tracked by git (not gitignored). 
 
 ### 6b: Install the sync script
 
-Read the companion file `scripts/sync-config-table.sh` (in this skill's directory) and write it verbatim to `scripts/sync-config-table.sh` in the project. Create the `scripts/` directory if it does not exist. Do not retype the script from memory and do not edit it while copying — it carries a `# sync-config-table-version: N` marker on line 2 that `/cc-config-optimize` uses to detect when a project's copy has fallen behind the plugin's. A hand-modified copy defeats that check.
+Read the companion file `scripts/sync-config-table.sh` (in this skill's directory) and write it verbatim to `scripts/sync-config-table.sh` in the project. Create the `scripts/` directory if it does not exist. Do not retype the script from memory and do not edit it while copying — it carries a `# sync-config-table-version: N` marker on line 2 that `/auditing-config` uses to detect when a project's copy has fallen behind the plugin's. A hand-modified copy defeats that check.
 
 The script keeps the table in sync by rebuilding it from the filesystem on each commit: it drops rows for files that no longer exist, appends rows for new config files with a `TODO` placeholder, preserves every hand-written description, and skips gitignored files.
 
@@ -405,7 +405,7 @@ Add `<!-- cc-config: last-optimize-run: YYYY-MM-DD <sha> -->` to CLAUDE.md (toda
 use `HEAD` as a harmless placeholder; the bundled hook only reads a SHA it can resolve). Place
 it near the `## Key Config Files` table. This gives `cc-config`'s bundled `SessionStart` hook
 (`plugins/cc-config/hooks/check-optimize-staleness.sh`) a baseline from the very first commit,
-so it can later remind the user to run `/cc-config-optimize` once the project has drifted —
+so it can later remind the user to run `/auditing-config` once the project has drifted —
 see that skill's "Audit staleness reminder" section for the full mechanism.
 
 ## Step 7: Present summary
@@ -418,7 +418,7 @@ After creating all files, give the user a concise summary:
 4. Remind the user of five high-leverage next steps:
    - Run `/context` in a fresh session immediately after setup to check startup token overhead. If it exceeds ~10,000 tokens before sending a single message, something is loading too much — oversized CLAUDE.md, too many unconditional context imports, or a large number of MCP tools are common causes.
    - Add test/build/lint commands to CLAUDE.md once they exist.
-   - Run `/cc-config-optimize` after the project has some code to get a project-aware configuration pass.
+   - Run `/auditing-config` after the project has some code to get a project-aware configuration pass.
    - Consider adding MCP servers to `.mcp.json` as needs arise (Context7 for docs, GitHub for PRs, etc.).
    - Once recurring multi-step workflows emerge, the `/schedule` skill can automate them — run a chain of skills on a cron schedule and land the output in a review folder for human sign-off before anything goes live.
 5. If GitHub Actions workflow files were added (Step 4a), remind the user:
@@ -431,8 +431,8 @@ After creating all files, give the user a concise summary:
 7. Explain the Learnings mechanism:
    - The skills automatically store project-specific observations to `.claude/learnings.md` at the end of each run and recall them at the start of the next — no manual action required.
    - When the user corrects a mistake, Claude also appends a correction to `.claude/learnings.md` instead of modifying CLAUDE.md directly.
-   - Running `/cc-config-optimize` periodically reviews the file and proposes promoting recurring patterns into CLAUDE.md, skills, or hooks; one-off entries get deleted.
-8. If the Key Config Files auto-sync was set up (Step 6), also mention: `cc-config`'s bundled `SessionStart` hook will automatically nudge to run `/cc-config-optimize` once the project has drifted noticeably from today's baseline (default: 20+ commits or 14+ days with new activity) — no setup needed, it fires in any project the plugin is active in.
+   - Running `/auditing-config` periodically reviews the file and proposes promoting recurring patterns into CLAUDE.md, skills, or hooks; one-off entries get deleted.
+8. If the Key Config Files auto-sync was set up (Step 6), also mention: `cc-config`'s bundled `SessionStart` hook will automatically nudge to run `/auditing-config` once the project has drifted noticeably from today's baseline (default: 20+ commits or 14+ days with new activity) — no setup needed, it fires in any project the plugin is active in.
 9. Suggest committing the new config files to git.
 
 ## What NOT to do
@@ -449,7 +449,7 @@ After creating all files, give the user a concise summary:
 **Auto-store phase.** Before asking for feedback, review this run. For each qualifying observation, append one tagged line to `.claude/learnings.md` (create with standard header if missing):
 
 ```text
-[cc-config:cc-config-init] <concise fact about this project> — <YYYY-MM-DD>
+[cc-config:bootstrapping-config] <concise fact about this project> — <YYYY-MM-DD>
 ```
 
 Qualifies: something about this project that differs from what this skill assumes on a generic project; a suggestion the user explicitly accepted or rejected that deviates from skill defaults; a constraint or fact discovered that would change how this skill behaves next time.
@@ -480,4 +480,4 @@ Entries are tagged by skill and dated.
 - If the user **provides a correction**: append it as a tagged entry using the same format and qualification criteria above. Confirm total entries written across both phases: "✓ N learning(s) saved to `.claude/learnings.md`."
 - If the user **confirms quality or skips**: if any entries were auto-stored, confirm "✓ N learning(s) auto-saved to `.claude/learnings.md`." Then exit. If nothing was stored, skip the confirmation and exit directly.
 
-> **Note:** Learnings are automatically recalled at the start of the next skill run. Run `/cc-config-optimize` periodically to promote recurring patterns into the configuration.
+> **Note:** Learnings are automatically recalled at the start of the next skill run. Run `/auditing-config` periodically to promote recurring patterns into the configuration.

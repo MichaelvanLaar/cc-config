@@ -1,5 +1,5 @@
 ---
-name: cc-config-optimize
+name: auditing-config
 description: Audit and optimize an existing Claude Code configuration against current best practices. Use this skill when a user asks to review, improve, clean up, or optimize their Claude Code setup, CLAUDE.md, settings, hooks, MCP servers, or skills. Also use when the user says things like "check my config", "is my CLAUDE.md too long", "reduce token costs", "tighten permissions", or "my Claude Code setup feels bloated". This skill assumes the project has code, and possibly documentation or OpenSpec specs, that inform the optimization.
 allowed-tools: Read, Write, Edit, Bash, Grep, Glob
 argument-hint: "[optional: specific area to focus on, e.g. 'CLAUDE.md', 'hooks', 'costs']"
@@ -170,13 +170,13 @@ check every audit:
 **Hooks (Claude Code):**
 
 - Is there a PostToolUse formatter hook? If a formatter exists in the project but no hook runs it, this is a high-impact gap. Valid formatter targets include code formatters (prettier, ruff, rustfmt, gofmt, php-cs-fixer) and Markdown formatters (prettier on `.md`, `markdownlint --fix`) — don't skip the audit just because the project produces content rather than code.
-- Is there a PreToolUse hook protecting sensitive files? (defense in depth beyond `permissions.deny`) A `Read|Edit` guard that blocks `.env`/`.env.*` basenames while carving out `*.example`/`*.sample`/`*.template`/`*.dist`/`example.env` gives broad coverage that the enumerated deny list cannot, since deny rules must leave example files unmatched. See the secret-file guard hook in `/cc-config-init`.
+- Is there a PreToolUse hook protecting sensitive files? (defense in depth beyond `permissions.deny`) A `Read|Edit` guard that blocks `.env`/`.env.*` basenames while carving out `*.example`/`*.sample`/`*.template`/`*.dist`/`example.env` gives broad coverage that the enumerated deny list cannot, since deny rules must leave example files unmatched. See the secret-file guard hook in `/bootstrapping-config`.
 - Do all hooks use `|| true` for graceful degradation? **Exception: security hooks must fail closed.** A secret-file guard must exit non-zero (block) on the bad path and must not be softened with `|| true`, or it will pass silently when its dependency (e.g. `jq`) is missing. Only formatter/lint hooks should carry `|| true`.
 - Are hooks doing "block at submit" rather than "block at write"? (fewer interrupts, smoother flow)
 
 **Git hooks and hook-manager drift:**
 
-`/cc-config-init` creates a project-local `.githooks/pre-commit` that runs `scripts/sync-config-table.sh` and activates it via `git config core.hooksPath .githooks`. If a hook manager like Husky is added later, it takes over `core.hooksPath` — the `.githooks/pre-commit` is still present in the repo but silently stops running. This is a silent drift scenario. Check for it:
+`/bootstrapping-config` creates a project-local `.githooks/pre-commit` that runs `scripts/sync-config-table.sh` and activates it via `git config core.hooksPath .githooks`. If a hook manager like Husky is added later, it takes over `core.hooksPath` — the `.githooks/pre-commit` is still present in the repo but silently stops running. This is a silent drift scenario. Check for it:
 
 1. Detect hook managers:
    - Husky: `husky` in `package.json` devDependencies, or `.husky/` directory present
@@ -194,7 +194,7 @@ check every audit:
 `scripts/sync-config-table.sh` is copied into a project once, at init time, and nothing updates it afterwards — a plugin update does not reach into repos that were already initialized. Bug fixes to the script therefore only land when this skill runs. Check for it on every audit:
 
 1. Read the version marker from the project's copy: `grep -m1 'sync-config-table-version:' scripts/sync-config-table.sh`. A copy predating the versioning scheme has no marker — treat that as version 0.
-2. Read the marker from the plugin's canonical copy. It lives in the sibling `cc-config-init` skill directory, i.e. `../cc-config-init/scripts/sync-config-table.sh` relative to this skill's own directory. If you cannot locate it, say so and skip this check — do not fall back to guessing a version or reconstructing the script from memory.
+2. Read the marker from the plugin's canonical copy. It lives in the sibling `bootstrapping-config` skill directory, i.e. `../bootstrapping-config/scripts/sync-config-table.sh` relative to this skill's own directory. If you cannot locate it, say so and skip this check — do not fall back to guessing a version or reconstructing the script from memory.
 3. If the project's version is lower or absent, the copy is stale. **Show the user a diff of the two files and ask before overwriting.** Never overwrite silently: the marker only tells you the copy is old, not whether the user hand-edited it, and an unattended clobber would discard their changes without a trace.
 4. On confirmation, copy the plugin's file over the project's and re-apply `chmod +x`. Report which version replaced which.
 5. If the versions match, say nothing — this is a no-op on an up-to-date repo, and a clean audit shouldn't spend the user's attention on it.
@@ -310,7 +310,7 @@ ls .headroom 2>/dev/null && echo "headroom-dir-present" || echo "headroom-dir-ab
    - _MCP mode_: look for a Headroom entry in `.mcp.json`. Verify it is still in the active server list; stale entries add tool-count overhead for nothing.
    - _Proxy/wrap mode_: `headroom wrap claude` or `headroom proxy --port 8787 --code-aware` must be run before each session. If this is not documented in CLAUDE.md (or a project README), note it — teammates will not know to start it.
 3. **Code-aware flag**: For code compression to activate, the proxy must be started with `--code-aware`. Without it, code files produce `tokens_saved: 0`. Flag as a note if the user is on proxy mode and this flag is not documented.
-4. **Learnings coexistence**: Headroom's `.headroom/CLAUDE.local.md` and cc-config's `.claude/learnings.md` serve different purposes and should both be kept. Headroom's file captures machine-local session patterns; cc-config's file captures explicit user corrections and is team-shared (committed to git, feeds the `cc-config-optimize` promotion cycle). Do not consolidate them.
+4. **Learnings coexistence**: Headroom's `.headroom/CLAUDE.local.md` and cc-config's `.claude/learnings.md` serve different purposes and should both be kept. Headroom's file captures machine-local session patterns; cc-config's file captures explicit user corrections and is team-shared (committed to git, feeds the `auditing-config` promotion cycle). Do not consolidate them.
 
 **If Headroom is not installed and Python 3.10+ is available:**
 
@@ -451,7 +451,7 @@ After all changes:
    don't scatter multiple copies of this marker across the file). This step runs even if this
    audit found nothing to fix — a clean audit still resets the baseline.
 
-8. Suggest running `/cc-config-optimize` again periodically (e.g., after major features, after a few weeks of work) to prevent config drift. Mention that the bundled `SessionStart` hook will also nudge automatically once enough commits accumulate since the marker just written, so this is a backstop, not the primary way it's kept current.
+8. Suggest running `/auditing-config` again periodically (e.g., after major features, after a few weeks of work) to prevent config drift. Mention that the bundled `SessionStart` hook will also nudge automatically once enough commits accumulate since the marker just written, so this is a backstop, not the primary way it's kept current.
 9. Remind the user to commit the changes.
 
 ### Audit staleness reminder
@@ -463,7 +463,7 @@ apply automatically wherever the plugin is installed. On session start it reads 
 `last-optimize-run` marker this step writes, compares it against the repo's current commit
 count and date, and — only if the project has drifted noticeably since that baseline (default
 thresholds: 20+ commits, or 14+ days with at least one new commit) — emits a short reminder
-suggesting `/cc-config-optimize`. It never blocks anything and stays silent otherwise,
+suggesting `/auditing-config`. It never blocks anything and stays silent otherwise,
 including in repos that don't use `cc-config` at all (it only speaks up if it also finds
 `scripts/sync-config-table.sh`, i.e. clear evidence the project already opted in).
 This step is what keeps that hook's comparison meaningful — without a fresh marker, every
@@ -511,7 +511,7 @@ If CLAUDE.md says "always run prettier after editing" — that's a hook, not an 
 When `.claude/learnings.md` has accumulated entries, recurring patterns graduate into CLAUDE.md rules, skills, or hooks. One-off corrections get deleted. The file stays lean or gets removed entirely until the next correction cycle.
 
 **Hook-manager migration for sync-config-table:**
-When a project gains Husky or another hook manager after `/cc-config-init` was used, the `.githooks/pre-commit` goes silent because `core.hooksPath` is taken over. Migrate the sync script into the active hook manager's pre-commit hook and remove the now-dead `.githooks/` directory.
+When a project gains Husky or another hook manager after `/bootstrapping-config` was used, the `.githooks/pre-commit` goes silent because `core.hooksPath` is taken over. Migrate the sync script into the active hook manager's pre-commit hook and remove the now-dead `.githooks/` directory.
 
 ## What NOT to do
 
@@ -527,7 +527,7 @@ When a project gains Husky or another hook manager after `/cc-config-init` was u
 **Auto-store phase.** Before asking for feedback, review this run. For each qualifying observation, append one tagged line to `.claude/learnings.md` (create with standard header if missing). Skip entries promoted or deleted by Step 2g in this run:
 
 ```text
-[cc-config:cc-config-optimize] <concise fact about this project> — <YYYY-MM-DD>
+[cc-config:auditing-config] <concise fact about this project> — <YYYY-MM-DD>
 ```
 
 Qualifies: something about this project that differs from what this skill assumes on a generic project; a suggestion the user explicitly accepted or rejected that deviates from skill defaults; a constraint or fact discovered that would change how this skill behaves next time.
@@ -558,4 +558,4 @@ Entries are tagged by skill and dated.
 - If the user **provides a correction**: append it as a tagged entry using the same format and qualification criteria above. Confirm total entries written across both phases: "✓ N learning(s) saved to `.claude/learnings.md`."
 - If the user **confirms quality or skips**: if any entries were auto-stored, confirm "✓ N learning(s) auto-saved to `.claude/learnings.md`." Then exit. If nothing was stored, skip the confirmation and exit directly.
 
-> **Note:** Learnings are automatically recalled at the start of the next skill run. Run `/cc-config-optimize` periodically to promote recurring patterns into the configuration.
+> **Note:** Learnings are automatically recalled at the start of the next skill run. Run `/auditing-config` periodically to promote recurring patterns into the configuration.

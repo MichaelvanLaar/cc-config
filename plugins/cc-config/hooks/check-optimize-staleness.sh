@@ -2,9 +2,9 @@
 # SessionStart hook, bundled with the cc-config plugin — fires automatically in any
 # project the plugin is active in, no per-repo settings.json wiring needed.
 #
-# Reminds the user to run /cc-config-optimize once a project has drifted noticeably
-# since the last audit. "Last audit" is read from a marker that /cc-config-init and
-# /cc-config-optimize write to CLAUDE.md on completion:
+# Reminds the user to run /auditing-config once a project has drifted noticeably
+# since the last audit. "Last audit" is read from a marker that /bootstrapping-config and
+# /auditing-config write to CLAUDE.md on completion:
 #
 #   <!-- cc-config: last-optimize-run: YYYY-MM-DD <commit-sha> -->
 #
@@ -47,7 +47,7 @@ reason=""
 if [[ -z "$marker_line" ]]; then
   if $uses_cc_config; then
     remind=true
-    reason="This project has cc-config's Key Config Files sync set up, but no record of /cc-config-init or /cc-config-optimize ever completing a full run."
+    reason="This project has cc-config's Key Config Files sync set up, but no record of /bootstrapping-config or /auditing-config ever completing a full run."
   fi
 else
   marker_date="$(printf '%s' "$marker_line" | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}' | head -1 || true)"
@@ -60,7 +60,7 @@ else
 
   if [[ -n "$commits_since" && "$commits_since" -ge "$COMMIT_THRESHOLD" ]]; then
     remind=true
-    reason="$commits_since commits have landed since the last /cc-config-optimize run ($marker_date)."
+    reason="$commits_since commits have landed since the last /auditing-config run ($marker_date)."
   elif [[ -n "${marker_date:-}" ]]; then
     marker_epoch="$(date -d "$marker_date" +%s 2>/dev/null || date -j -f "%Y-%m-%d" "$marker_date" +%s 2>/dev/null || true)"
     if [[ -n "${marker_epoch:-}" ]]; then
@@ -69,14 +69,14 @@ else
       last_commit_epoch="$(git log -1 --format=%ct 2>/dev/null || echo 0)"
       if [[ "$last_commit_epoch" -gt "$marker_epoch" && "$days_since" -ge "$DAY_THRESHOLD" ]]; then
         remind=true
-        reason="It's been $days_since days since the last /cc-config-optimize run ($marker_date), and the repo has new commits since then."
+        reason="It's been $days_since days since the last /auditing-config run ($marker_date), and the repo has new commits since then."
       fi
     fi
   fi
 fi
 
 if $remind; then
-  context="cc-config reminder: $reason Consider running /cc-config-optimize to catch drift (stale Key Config Files, outdated sync script, config best practices) before it accumulates."
+  context="cc-config reminder: $reason Consider running /auditing-config to catch drift (stale Key Config Files, outdated sync script, config best practices) before it accumulates."
   jq -n --arg ctx "$context" '{hookSpecificOutput: {hookEventName: "SessionStart", additionalContext: $ctx}}'
 fi
 

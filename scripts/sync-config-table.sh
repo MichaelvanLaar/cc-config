@@ -9,7 +9,7 @@
 #
 # Every scan below is directory-guarded, so this one script self-adapts to the
 # project shape: a plugin repo's `context/` scan is a no-op, a content repo's
-# `plugins/` scan is a no-op. Do not fork it per project — /cc-config-optimize
+# `plugins/` scan is a no-op. Do not fork it per project — /auditing-config
 # compares the version marker above against the plugin's copy and offers to
 # refresh, and local forks would be flagged as drift.
 #
@@ -17,16 +17,16 @@
 # are skipped entirely when CLAUDE.md carries the
 # `<!-- cc-config: context-toc-registered -->` marker, since that marker means
 # the project already registers those files in its own `## Context files`
-# table (cc-config-init Step 3, cc-content-onboarding Step 5) — listing them
+# table (bootstrapping-config Step 3, content-onboarding Step 5) — listing them
 # again here would just duplicate that table under a generic "TODO" summary.
 #
 # This script can only judge "is this a config-shaped file" (matches a scanned
 # directory/extension), never "is this file important enough to belong in a
 # lean CLAUDE.md" — that call needs human/agent judgment, which is what
-# /cc-config-optimize is for. When that skill decides a matched file isn't
+# /auditing-config is for. When that skill decides a matched file isn't
 # worth a row, deleting the row alone doesn't stick: the file still matches a
 # scan on the next run and gets silently re-added with a placeholder. To make
-# a demotion stick (while staying reversible), /cc-config-optimize records it
+# a demotion stick (while staying reversible), /auditing-config records it
 # in a `key-config-excluded` HTML comment block anywhere in CLAUDE.md:
 #
 #   <!-- cc-config: key-config-excluded
@@ -36,7 +36,7 @@
 # Any path listed there is dropped from the table regardless of which scan
 # matched it. Nothing here prunes stale entries or judges whether an excluded
 # file has since grown important again — that periodic reconsideration is
-# also /cc-config-optimize's job, not this script's.
+# also /auditing-config's job, not this script's.
 
 set -euo pipefail
 
