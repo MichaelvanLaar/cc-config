@@ -1,0 +1,14 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    uses: clever-cc-plugins/.github/.github/workflows/plugin-release.yml@main
+    permissions:
+      contents: write

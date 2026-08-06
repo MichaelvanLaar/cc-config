@@ -13,6 +13,7 @@ Reusable Claude Code skills for configuration management, distributed as a Claud
 | `.githooks/pre-commit`                                   | Secret scanning (gitleaks) + CLAUDE.md table sync                                                 |
 | `.github/workflows/claude-code-review.yml`               | Automatic PR review via Claude Code                                                               |
 | `.github/workflows/claude.yml`                           | Trigger Claude via @claude mentions in issues/PRs                                                 |
+| `.github/workflows/release.yml`                          | Triggers shared plugin-release workflow — version bump + GitHub release — on push to main         |
 | `.gitignore`                                             | Git ignore patterns                                                                               |
 | `CLAUDE.md`                                              | Project instructions, loaded every message                                                        |
 | `plugins/cc-config/.claude-plugin/plugin.json`           | Plugin manifest for the cc-config plugin                                                          |
