@@ -219,6 +219,12 @@ This catches secrets committed by both Claude Code and the user. Unlike `permiss
 - Is `CLAUDE_CODE_SUBAGENT_MODEL` set? `haiku` meaningfully lowers cost for exploration subagents (Haiku pricing is a fraction of Sonnet/Opus) — avoid citing a specific percentage, it varies by workload.
 - Are `alwaysThinkingEnabled` and `effortLevel` (in `settings.json`, not `env`) set sensibly? These control thinking budget more directly than `MAX_THINKING_TOKENS` and independently of any autocompact override. `alwaysThinkingEnabled: true` at `effortLevel: high` pushes token usage per turn up substantially and can make context fill (and any compaction) happen far sooner than expected — flag this combination unless the user has a specific reason for always-on deep reasoning. Default recommendation: leave `alwaysThinkingEnabled` unset/`false` and `effortLevel` at `medium`.
 
+**Auto-pull on session start:**
+
+`cc-config` bundles a `SessionStart` hook (`plugins/cc-config/hooks/auto-git-pull.sh`) that fetches and fast-forwards the current branch at the start of every session — but only when the project has opted in via `CC_CONFIG_AUTO_GIT_PULL=true` in the `env` block of `.claude/settings.local.json`. It never merges or rebases; on divergence it skips and surfaces a message instead. This is a personal multi-machine workflow preference, not a project convention — never write it to the committed `.claude/settings.json`, and never enable it without asking.
+
+Check whether the flag is set. If it is **not** set and the project is a git repo with a remote, surface it as a nice-to-have suggestion (see below) rather than enabling it unprompted — most projects don't need it, and it's the kind of thing only the user asking to work across multiple machines actually wants.
+
 **`.claudeignore`:**
 
 Check whether a `.claudeignore` file exists. This file (`.gitignore` syntax) tells Claude Code which paths to skip entirely when indexing the project, reducing invisible startup token overhead.
@@ -382,6 +388,7 @@ Organize findings into three categories:
 - PDFs, DOCX files, or HTML pages referenced in CLAUDE.md or context files without Markdown equivalents: converting them saves significant tokens (HTML→Markdown ~90% reduction, PDF→Markdown ~65–70%, DOCX→Markdown ~33%). Tools like Pandoc, Docling, or `markitdown` convert in seconds. Flag any such files found in the registered context location or referenced via `@`-imports
 - Missing `.claudeignore` startup token check: suggest the user run `/context` in a fresh session to measure actual startup overhead — if high, a missing or incomplete `.claudeignore` is a likely cause
 - Headroom not installed but Python 3.10+ is available (and the project is not exclusively run in sandboxed/remote environments): Headroom compresses tool outputs, Bash results, and code in-flight before they reach the model — a different optimization level from env vars and `.claudeignore`. Real-workload savings: 73–92% on code-search and log-heavy tasks. Output tokens cost 5× more than input on Opus-class models, so in-flight compression compounds quickly. Install: `pip install "headroom-ai[all]"`. Start with `headroom wrap claude` (quickest path) or `headroom proxy --port 8787 --code-aware` (proxy mode; `--code-aware` is required for code compression). Run `headroom perf` after a few sessions to measure savings. Important constraint: requires a persistent local process — not compatible with remote/sandboxed sessions (Claude Code on the web, CI pipelines). If the project is used in both local and remote contexts, Headroom benefits only the local sessions.
+- `CC_CONFIG_AUTO_GIT_PULL` not set and the project is a git repo with a configured remote: ask whether the user works on this repo from multiple machines and forgets to `git pull` before starting a session. If yes, offer to set `CC_CONFIG_AUTO_GIT_PULL=true` in the `env` block of `.claude/settings.local.json` (create the file if absent) so the bundled `auto-git-pull.sh` `SessionStart` hook fast-forwards the branch automatically, skipping (with a message) if history has diverged. Never enable this without asking, and never write it to the committed `.claude/settings.json`.
 
 Present the findings to the user as a concise list, grouped by category. For each finding, state: what the issue is, why it matters, and what you'd change. Ask for approval before making changes.
 
@@ -424,6 +431,10 @@ Append `.headroom/` to `.gitignore`. Place it under the existing Claude Code per
 ```
 
 Do not create `.headroom/` or any files inside it — Headroom manages that directory itself.
+
+When enabling auto-pull on session start:
+
+Add or merge `env.CC_CONFIG_AUTO_GIT_PULL: "true"` into `.claude/settings.local.json` (create it with `{"env": {"CC_CONFIG_AUTO_GIT_PULL": "true"}}` if the file doesn't exist yet; merge into the existing `env` block if it does — don't clobber other keys). Confirm this file is already covered by `.gitignore` (`.claude/settings.local.json` is part of the standard ignore block) so the flag stays machine-local and never lands in a shared config.
 
 Preserve things that work well. Don't refactor for the sake of refactoring. If an existing config is well-structured and correct, say so and move on.
 

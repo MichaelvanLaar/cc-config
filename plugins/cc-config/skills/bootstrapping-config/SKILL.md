@@ -308,6 +308,17 @@ After writing, do **not** add the workflow files to the Key Config Files table i
 
 Note in Step 7 if any workflow files were added: the user must add `CLAUDE_CODE_OAUTH_TOKEN` as a repository secret in GitHub Settings → Secrets and variables → Actions before the workflows will run.
 
+## Step 4b: Offer auto-pull on session start (if git repo with a remote)
+
+If Step 1 found a git repo with a configured remote, ask once:
+
+> "Do you work on this repo from multiple computers and sometimes forget to `git pull` before starting a session? I can set up an automatic fetch + fast-forward at the start of every session — it never merges or rebases, and if history has diverged it skips with a message instead of touching anything. This is a personal setting (not shared with collaborators). Enable it?"
+
+- If **yes**: create or update `.claude/settings.local.json` with `{"env": {"CC_CONFIG_AUTO_GIT_PULL": "true"}}` (merge into an existing `env` block, don't clobber other keys). The bundled `auto-git-pull.sh` `SessionStart` hook (declared in the plugin's own `hooks.json`, no project-level wiring needed) reads this flag. Confirm `.claude/settings.local.json` is covered by `.gitignore` (see Step 5a) so the flag stays machine-local.
+- If **no** or the project has no remote yet: skip without mention in the summary.
+
+Do not add this file's contents to the Key Config Files table in Step 6 — `.claude/settings.local.json` is gitignored and personal, not part of the tracked config surface.
+
 ## Step 5: Update .gitignore and create .claudeignore
 
 ### 5a: Update .gitignore
@@ -421,19 +432,20 @@ After creating all files, give the user a concise summary:
    - Run `/auditing-config` after the project has some code to get a project-aware configuration pass.
    - Consider adding MCP servers to `.mcp.json` as needs arise (Context7 for docs, GitHub for PRs, etc.).
    - Once recurring multi-step workflows emerge, the `/schedule` skill can automate them — run a chain of skills on a cron schedule and land the output in a review folder for human sign-off before anything goes live.
-5. If GitHub Actions workflow files were added (Step 4a), remind the user:
+5. If auto-pull on session start was enabled (Step 4b), remind the user: it's stored in `.claude/settings.local.json` (machine-local, gitignored), so it needs to be re-enabled separately on each other computer where they want it.
+6. If GitHub Actions workflow files were added (Step 4a), remind the user:
    - Add `CLAUDE_CODE_OAUTH_TOKEN` as a repository secret in **GitHub Settings → Secrets and variables → Actions** before the workflows will run.
    - The token is a Claude Code OAuth token from your Anthropic account — not an API key.
-6. If the Key Config Files auto-sync was set up (Step 6), remind the user:
+7. If the Key Config Files auto-sync was set up (Step 6), remind the user:
    - The pre-commit hook requires a one-time activation per clone: `git config core.hooksPath .githooks`
    - This command was already run for the current clone, but collaborators or fresh clones need to run it too.
    - Suggest documenting it in the project README's setup instructions.
-7. Explain the Learnings mechanism:
+8. Explain the Learnings mechanism:
    - The skills automatically store project-specific observations to `.claude/learnings.md` at the end of each run and recall them at the start of the next — no manual action required.
    - When the user corrects a mistake, Claude also appends a correction to `.claude/learnings.md` instead of modifying CLAUDE.md directly.
    - Running `/auditing-config` periodically reviews the file and proposes promoting recurring patterns into CLAUDE.md, skills, or hooks; one-off entries get deleted.
-8. If the Key Config Files auto-sync was set up (Step 6), also mention: `cc-config`'s bundled `SessionStart` hook will automatically nudge to run `/auditing-config` once the project has drifted noticeably from today's baseline (default: 20+ commits or 14+ days with new activity) — no setup needed, it fires in any project the plugin is active in.
-9. Suggest committing the new config files to git.
+9. If the Key Config Files auto-sync was set up (Step 6), also mention: `cc-config`'s bundled `SessionStart` hook will automatically nudge to run `/auditing-config` once the project has drifted noticeably from today's baseline (default: 20+ commits or 14+ days with new activity) — no setup needed, it fires in any project the plugin is active in.
+10. Suggest committing the new config files to git.
 
 ## What NOT to do
 
