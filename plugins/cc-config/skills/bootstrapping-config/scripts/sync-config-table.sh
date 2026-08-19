@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# sync-config-table-version: 7
+# sync-config-table-version: 8
 # This is the canonical copy, distributed into other projects by /bootstrapping-config and
 # refreshed in place by /auditing-config's version-drift check. Its scan logic is kept in sync
 # with cc-config's own dogfood copy at scripts/sync-config-table.sh, repo root (only this header
@@ -111,6 +111,14 @@ if [[ -d "$ROOT/.claude/skills" ]]; then
     relpath="${f#$ROOT/}"
     config_files+=("$relpath")
   done < <(find "$ROOT/.claude/skills" -maxdepth 2 -name 'SKILL.md' -type f -print0 2>/dev/null | sort -z)
+fi
+
+# .claude/agents/ custom subagent definitions
+if [[ -d "$ROOT/.claude/agents" ]]; then
+  while IFS= read -r -d '' f; do
+    relpath="${f#$ROOT/}"
+    config_files+=("$relpath")
+  done < <(find "$ROOT/.claude/agents" -maxdepth 1 -name '*.md' -type f -print0 2>/dev/null | sort -z)
 fi
 
 # plugins/ manifests, skills, and bundled hooks (plugin repos)

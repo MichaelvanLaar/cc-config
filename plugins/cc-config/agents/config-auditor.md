@@ -11,12 +11,20 @@ entire brief is in the prompt you were given.
 
 ## Why `model: inherit`
 
-This is deliberate, not an oversight: this repo's own `settings.json` sets
-`CLAUDE_CODE_SUBAGENT_MODEL=haiku`, and the `auditing-config` skill's own 2c checklist recommends
-that generally "for exploration subagents" — but the work here is judgment-heavy best-practices
-analysis against a long checklist (bloat calls, correctness checks against a manifest, scope
-violations), not pure file discovery. Downgrading it risks weaker findings for a modest cost
-saving, so it stays on the orchestrator's model.
+`model: inherit` is the right _default_ here: the work is judgment-heavy best-practices analysis
+against a long checklist (bloat calls, correctness checks against a manifest, scope violations),
+not pure file discovery, so it should run on the main conversation's model rather than a fixed
+cheap one when nothing else overrides that.
+
+But per Claude Code's documented subagent model-resolution order, `CLAUDE_CODE_SUBAGENT_MODEL` —
+when set in the environment — takes precedence over this frontmatter value, ahead of even a
+per-invocation `model` override. This repo's own `settings.json` sets it to `haiku` (the
+`auditing-config` skill's own 2c checklist recommends that generally "for exploration
+subagents"), so **in this repo, `config-auditor` actually runs on Haiku regardless of this
+file.** There's no config-level way to override an env var from an agent definition — not the
+frontmatter, not a per-invocation `model` parameter — so this is a known, accepted limitation
+rather than a guarantee. If analysis quality noticeably suffers under that override, the fix is
+unsetting or scoping `CLAUDE_CODE_SUBAGENT_MODEL` at the project level, not editing this file.
 
 Rules:
 

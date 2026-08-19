@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# sync-config-table-version: 7
+# sync-config-table-version: 8
 # This is cc-config's own dogfood copy — its scan logic is kept in sync with the canonical copy
 # at plugins/cc-config/skills/bootstrapping-config/scripts/sync-config-table.sh (only this
 # header comment is expected to differ between the two). Any change to the version marker or a
@@ -110,6 +110,14 @@ if [[ -d "$ROOT/.claude/skills" ]]; then
     relpath="${f#$ROOT/}"
     config_files+=("$relpath")
   done < <(find "$ROOT/.claude/skills" -maxdepth 2 -name 'SKILL.md' -type f -print0 2>/dev/null | sort -z)
+fi
+
+# .claude/agents/ custom subagent definitions
+if [[ -d "$ROOT/.claude/agents" ]]; then
+  while IFS= read -r -d '' f; do
+    relpath="${f#$ROOT/}"
+    config_files+=("$relpath")
+  done < <(find "$ROOT/.claude/agents" -maxdepth 1 -name '*.md' -type f -print0 2>/dev/null | sort -z)
 fi
 
 # plugins/ manifests, skills, and bundled hooks (plugin repos)

@@ -64,7 +64,11 @@ call itself to fail with an error rather than silently substituting some other a
 Code's agent resolution doesn't silently default when a named type doesn't match. Treat that
 error as the trigger to fall back to `subagent_type: general-purpose`, carrying the
 read-only/no-asking rules from `config-auditor.md` into the prompt explicitly, since a
-general-purpose agent won't have them by default.
+general-purpose agent won't have them by default. Note that this fallback loses the tool-level
+`Write`/`Edit` block — `general-purpose` has full tool access, so on that path "read-only" is
+100% instruction-based for every tool, not just `Bash`, same risk profile `config-auditor.md` was
+built to reduce. It's still the right fallback (better than failing the whole audit), just not
+an equivalent guarantee.
 
 Each subagent's prompt must be self-contained, since it starts with no memory of this
 conversation:
