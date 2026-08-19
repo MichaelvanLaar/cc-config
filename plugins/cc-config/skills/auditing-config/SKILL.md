@@ -58,8 +58,9 @@ just don't start Step 3 until all three have actually returned their results. Th
 else useful to do in the meantime, so waiting for all three costs nothing. Use
 `subagent_type: cc-config:config-auditor`
 (the plugin-scoped name — plugin agents resolve as `plugin-name:agent-name`, not the bare
-filename; bundled with this plugin at `agents/config-auditor.md`, sibling to this skill's own
-directory — it hard-blocks `Write`/`Edit` at the tool level, which is real enforcement for those
+filename; bundled with this plugin at `agents/config-auditor.md`, one level up from this skill's
+own directory — a sibling of the plugin's `skills/` directory, not of `skills/auditing-config/`
+itself — it hard-blocks `Write`/`Edit` at the tool level, which is real enforcement for those
 two. Its "don't mutate anything via Bash" rule is still instruction-based, same as any other rule
 in this prompt — `Bash` can't be dropped since the checklist needs `wc`, `find`, `test -f`,
 `git log`, etc., and nothing stops a Bash call from writing a file other than the subagent
@@ -96,7 +97,12 @@ conversation:
   reference where applicable. Wherever its checklist says to ask the user, present something to
   them, or wait for approval (e.g. the sync-script diff in 2c, or the grouped promote/delete list
   in 2g) — it can't do any of that, so it should fold the exact content (the diff, the grouped
-  list) into its report instead, for the main thread to relay in Step 3.
+  list) into its report instead, for the main thread to relay in Step 3. The same applies to
+  checklist steps phrased as actions rather than questions — 2c's sync-script drift check says
+  "on confirmation, copy the plugin's file over the project's," a leftover from when this skill
+  was single-threaded and the same pass that analyzed also applied fixes. The subagent surfaces
+  that as a finding (with the diff); actually copying the file happens later, in this skill's own
+  Step 4, performed by the main thread after approval — never by the subagent.
 
 When all three return, merge their metrics and findings lists before continuing to Step 3. If a
 subagent's report is ambiguous or incomplete on some point, it's fine to read that one file
