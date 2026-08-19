@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# sync-config-table-version: 6
+# sync-config-table-version: 7
 # Keeps the "Key Config Files" table in CLAUDE.md in sync with the filesystem.
 # - Removes rows for files that no longer exist
 # - Appends rows for new config files with a placeholder description
@@ -112,7 +112,7 @@ if [[ -d "$ROOT/plugins" ]]; then
   while IFS= read -r -d '' f; do
     relpath="${f#$ROOT/}"
     config_files+=("$relpath")
-  done < <(find "$ROOT/plugins" -type f \( -name 'plugin.json' -o -name 'SKILL.md' -o -path '*/hooks/*.json' -o -path '*/hooks/*.sh' \) -print0 2>/dev/null | sort -z)
+  done < <(find "$ROOT/plugins" -type f \( -name 'plugin.json' -o -name 'SKILL.md' -o -path '*/hooks/*.json' -o -path '*/hooks/*.sh' -o -path '*/agents/*.md' \) -print0 2>/dev/null | sort -z)
 fi
 
 # context/ reference files — skipped when CLAUDE.md carries the

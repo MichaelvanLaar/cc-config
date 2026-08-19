@@ -33,14 +33,18 @@ and steer them.
 
 **Domain split.** Each `### 2x` heading below is tagged with its owner:
 
-- **Agent A — CLAUDE.md, context, cross-file consistency:** 2a, 2a-bis, 2b, 2f, 2g, 2i. Also
-  owns the CLAUDE.md/AGENTS.md/context-file/learnings.md portions of the inventory below, and
-  the "CLAUDE.md word count", "`@`-import count", and "learnings.md entry count" metrics.
-- **Agent B — Settings, hooks, permissions, MCP:** 2c, 2d. Also owns the settings/hooks/
-  `.mcp.json`/git-hooks portions of the inventory below, and the "MCP servers", "Number of
+- **Agent A — CLAUDE.md, context, cross-file consistency:** 2a, 2a-bis, 2b, 2f, 2g, 2i, plus the
+  "CLAUDE.md word count", "`@`-import count", and "learnings.md entry count" metrics.
+- **Agent B — Settings, hooks, permissions, MCP:** 2c, 2d, plus the "MCP servers", "Number of
   hooks", "permissions", and "env vars" metrics.
-- **Agent C — Skills, Headroom:** 2e, 2h. Also owns the skills/`.headroom/` portions of the
-  inventory below, and the "number of skills" metric.
+- **Agent C — Skills, Headroom:** 2e, 2h, plus the "number of skills" metric.
+
+Every bullet under **Configuration files** and **Project context** below is tagged `(A)`, `(B)`,
+or `(C)` the same way — that's each agent's full inventory scope, not just the `### 2x` sections.
+Where a bullet is tagged for one agent but another agent's section also touches it in passing
+(e.g. 2e's context-scope checks glancing at `context/`, which Agent A otherwise owns), the owning
+agent's report is authoritative; the other agent may note it needs a quick peek rather than
+re-inventorying it in full.
 
 This split is uneven by workload, not just by section count: 2c alone (permissions, hooks,
 git-hook-manager drift, sync-script version drift, secret scanning, env vars, auto-pull,
@@ -94,36 +98,36 @@ a hard boundary.
 
 ### Configuration files
 
-- `CLAUDE.md` (project root and any subdirectories)
-- `AGENTS.md`
-- `.claude/settings.json` and `.claude/settings.local.json`
-- `.claude/local.md`
-- `.claude/rules/*.md`
-- `.claude/skills/*/SKILL.md`
-- `.claude/commands/*.md` (legacy format)
-- `.claude/agents/*.md`
-- `.claude/learnings.md`
-- `.headroom/` (machine-local Headroom data — check for presence: `ls .headroom 2>/dev/null && echo headroom-present || echo headroom-absent`)
-- `context/` (domain context files at project root by convention — company profile, brand voice, architecture decisions, etc.; if CLAUDE.md's `## Context files` table registers a different location, use that instead)
-- `context/design/` (Claude Design handoff artifacts — PROMPT.md, design-notes.md, screenshots/ — under the registered context location)
-- `DESIGN.md` (root-level design system spec — YAML tokens + Markdown rationale; auto-read by Claude Code and other agents)
-- `.mcp.json` (project root)
-- `~/.claude/CLAUDE.md` (user level — read but don't modify without asking)
-- `~/.claude.json` (user-level MCP — read but don't modify without asking)
+- `CLAUDE.md` (project root and any subdirectories) (A)
+- `AGENTS.md` (A)
+- `.claude/settings.json` and `.claude/settings.local.json` (B)
+- `.claude/local.md` (A)
+- `.claude/rules/*.md` (A)
+- `.claude/skills/*/SKILL.md` (C)
+- `.claude/commands/*.md` (legacy format) (C)
+- `.claude/agents/*.md` (C)
+- `.claude/learnings.md` (A)
+- `.headroom/` (machine-local Headroom data — check for presence: `ls .headroom 2>/dev/null && echo headroom-present || echo headroom-absent`) (C)
+- `context/` (domain context files at project root by convention — company profile, brand voice, architecture decisions, etc.; if CLAUDE.md's `## Context files` table registers a different location, use that instead) (A)
+- `context/design/` (Claude Design handoff artifacts — PROMPT.md, design-notes.md, screenshots/ — under the registered context location) (A)
+- `DESIGN.md` (root-level design system spec — YAML tokens + Markdown rationale; auto-read by Claude Code and other agents) (A)
+- `.mcp.json` (project root) (B)
+- `~/.claude/CLAUDE.md` (user level — read but don't modify without asking) (A)
+- `~/.claude.json` (user-level MCP — read but don't modify without asking) (B)
 
 ### Project context
 
-- Package manager and dependencies (package.json, composer.json, Cargo.toml, etc.)
-- Build/test/lint commands (scripts in package.json, Makefile targets, etc.)
-- Formatter and linter configs (.prettierrc, .eslintrc, phpcs.xml, rustfmt.toml, etc.)
-- CI/CD configuration
-- Content-project artifacts: static-site configs (`hugo.toml`, `_config.yml`, `astro.config.*`, `mkdocs.yml`), prose tooling (`.vale.ini`, `.markdownlint.*`), shared knowledge bases or style guides referenced from CLAUDE.md
-- OpenSpec artifacts (`openspec/` directory, `openspec/project.md`, change specs)
-- Documentation (`docs/`, `README.md`, architecture docs)
-- Directory structure and apparent architecture patterns
-- Hook managers and their hook files (`.husky/`, `lefthook.yml`, `.pre-commit-config.yaml`)
-- Project-local git hooks directory (`.githooks/`) and sync scripts (`scripts/sync-config-table.{sh,js}`)
-- Design system artifacts: `DESIGN.md` at the project root (persistent design system spec); `context/design/` (or the registered context location's `design/` subfolder) for Claude Design handoff artifacts (PROMPT.md, design-notes.md, screenshots/)
+- Package manager and dependencies (package.json, composer.json, Cargo.toml, etc.) (A)
+- Build/test/lint commands (scripts in package.json, Makefile targets, etc.) (A)
+- Formatter and linter configs (.prettierrc, .eslintrc, phpcs.xml, rustfmt.toml, etc.) (B)
+- CI/CD configuration (B)
+- Content-project artifacts: static-site configs (`hugo.toml`, `_config.yml`, `astro.config.*`, `mkdocs.yml`), prose tooling (`.vale.ini`, `.markdownlint.*`), shared knowledge bases or style guides referenced from CLAUDE.md (A)
+- OpenSpec artifacts (`openspec/` directory, `openspec/project.md`, change specs) (A)
+- Documentation (`docs/`, `README.md`, architecture docs) (A)
+- Directory structure and apparent architecture patterns (A)
+- Hook managers and their hook files (`.husky/`, `lefthook.yml`, `.pre-commit-config.yaml`) (B)
+- Project-local git hooks directory (`.githooks/`) and sync scripts (`scripts/sync-config-table.{sh,js}`) (B)
+- Design system artifacts: `DESIGN.md` at the project root (persistent design system spec); `context/design/` (or the registered context location's `design/` subfolder) for Claude Design handoff artifacts (PROMPT.md, design-notes.md, screenshots/) (A)
 
 ### Current state metrics
 
