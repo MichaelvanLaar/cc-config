@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
-# sync-config-table-version: 6
+# sync-config-table-version: 8
+# This is the canonical copy, distributed into other projects by /bootstrapping-config and
+# refreshed in place by /auditing-config's version-drift check. Its scan logic is kept in sync
+# with cc-config's own dogfood copy at scripts/sync-config-table.sh, repo root (only this header
+# comment is expected to differ between the two). Any change to the version marker or a find
+# pattern must be mirrored there too, or the two will silently diverge and this repo will start
+# flagging itself as stale.
 # Keeps the "Key Config Files" table in CLAUDE.md in sync with the filesystem.
 # - Removes rows for files that no longer exist
 # - Appends rows for new config files with a placeholder description
@@ -107,12 +113,23 @@ if [[ -d "$ROOT/.claude/skills" ]]; then
   done < <(find "$ROOT/.claude/skills" -maxdepth 2 -name 'SKILL.md' -type f -print0 2>/dev/null | sort -z)
 fi
 
-# plugins/ manifests, skills, and bundled hooks (plugin repos)
+# .claude/agents/ custom subagent definitions
+if [[ -d "$ROOT/.claude/agents" ]]; then
+  while IFS= read -r -d '' f; do
+    relpath="${f#$ROOT/}"
+    config_files+=("$relpath")
+  done < <(find "$ROOT/.claude/agents" -maxdepth 1 -name '*.md' -type f -print0 2>/dev/null | sort -z)
+fi
+
+# plugins/ manifests, skills, and bundled hooks (plugin repos). No -maxdepth here, matching the
+# existing plugin.json/SKILL.md/hooks patterns below — a plugin's own layout under plugins/<name>/
+# can nest arbitrarily, so */agents/*.md is deliberately as loose as its siblings in this find,
+# unlike the maxdepth-1 .claude/agents/ scan above (a flat, single-project directory).
 if [[ -d "$ROOT/plugins" ]]; then
   while IFS= read -r -d '' f; do
     relpath="${f#$ROOT/}"
     config_files+=("$relpath")
-  done < <(find "$ROOT/plugins" -type f \( -name 'plugin.json' -o -name 'SKILL.md' -o -path '*/hooks/*.json' -o -path '*/hooks/*.sh' \) -print0 2>/dev/null | sort -z)
+  done < <(find "$ROOT/plugins" -type f \( -name 'plugin.json' -o -name 'SKILL.md' -o -path '*/hooks/*.json' -o -path '*/hooks/*.sh' -o -path '*/agents/*.md' \) -print0 2>/dev/null | sort -z)
 fi
 
 # context/ reference files — skipped when CLAUDE.md carries the

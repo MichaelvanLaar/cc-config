@@ -157,7 +157,7 @@ Or focused on a specific area:
 The skill will:
 
 1. **Inventory** every configuration file, design system artifacts (`DESIGN.md`, `context/design/`), the project's tech stack, and available context (code, docs, OpenSpec specs). This now includes `.claude/learnings.md` and reports the number of entries it contains.
-2. **Analyze** against best practices, checking for bloat, missing essentials (including a Learnings section and an unreferenced `DESIGN.md`), security gaps, cost optimization opportunities, multi-tool consistency, and — for git repos with a remote that haven't opted in yet — whether auto-pull on session start would help.
+2. **Analyze** against best practices, checking for bloat, missing essentials (including a Learnings section and an unreferenced `DESIGN.md`), security gaps, cost optimization opportunities, multi-tool consistency, and — for git repos with a remote that haven't opted in yet — whether auto-pull on session start would help. Steps 1 and 2 run as three parallel, read-only subagents (one per domain) so the read-heavy scanning stays out of your main conversation's context — only their condensed findings come back.
 3. **Review learnings**: if `.claude/learnings.md` exists, group entries into recurring patterns vs. one-offs and propose promoting patterns into CLAUDE.md, a skill, or a hook — then deleting resolved entries.
 4. **Present** findings grouped as must fix / should fix / nice to have, with explanations for each.
 5. **Wait for your approval** before changing anything.
