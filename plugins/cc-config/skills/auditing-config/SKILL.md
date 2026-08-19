@@ -1,7 +1,7 @@
 ---
 name: auditing-config
 description: Audit and optimize an existing Claude Code configuration against current best practices. Use this skill when a user asks to review, improve, clean up, or optimize their Claude Code setup, CLAUDE.md, settings, hooks, MCP servers, or skills. Also use when the user says things like "check my config", "is my CLAUDE.md too long", "reduce token costs", "tighten permissions", or "my Claude Code setup feels bloated". This skill assumes the project has code, and possibly documentation or OpenSpec specs, that inform the optimization.
-allowed-tools: Read, Write, Edit, Bash, Grep, Glob, Task
+allowed-tools: Read, Write, Edit, Bash, Grep, Glob, Agent
 argument-hint: "[optional: specific area to focus on, e.g. 'CLAUDE.md', 'hooks', 'costs']"
 ---
 
@@ -339,6 +339,7 @@ Run `/context` in a fresh session to get the current startup token count — if 
   - **Duplicates**: two rows share the same Label or the same File path.
   - **Vague summaries** (soft check — human judgment): a summary too generic to act as a relevance signal, e.g. "Writing style guidelines for the company" instead of "Formal German, em-dash preferred, no exclamation marks — all corporate copy." Flag as a suggestion, not a hard rule.
 - Does each skill end with a feedback step? A skill that closes by asking "Did this output meet your expectations? If not, I'll log a correction to `.claude/learnings.md`" makes the learnings loop active rather than passive — corrections are solicited at the point of delivery, not just accumulated from future mishaps. Flag absent feedback steps as "nice to have."
+- For each custom subagent in `.claude/agents/*.md`: is it actually referenced anywhere (grep skills, hooks, and CLAUDE.md for its name in an `Agent(...)`/`subagent_type:` context)? An unreferenced custom agent is dead weight the same way an unused MCP server is. Does its `tools:` allowlist match what it actually needs — a subagent with side effects (writes, deploys) granted `Write`/`Edit`/`Bash` it doesn't use is worth flagging the same way an overbroad skill `allowed-tools` list would be.
 
 ### 2f: Multi-tool consistency check (Agent A)
 
@@ -615,7 +616,7 @@ When a project gains Husky or another hook manager after `/bootstrapping-config`
 
 ## Feedback
 
-**Auto-store phase.** Before asking for feedback, review this run. For each qualifying observation, append one tagged line to `.claude/learnings.md` (create with standard header if missing). Skip entries promoted or deleted by Step 2g in this run:
+**Auto-store phase.** Before asking for feedback, review this run. For each qualifying observation, append one tagged line to `.claude/learnings.md` (create with standard header if missing). Skip entries promoted or deleted by 2g in this run:
 
 ```text
 [cc-config:auditing-config] <concise fact about this project> — <YYYY-MM-DD>
