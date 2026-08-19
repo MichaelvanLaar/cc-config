@@ -37,19 +37,29 @@ and steer them.
   owns the CLAUDE.md/AGENTS.md/context-file/learnings.md portions of the inventory below, and
   the "CLAUDE.md word count", "`@`-import count", and "learnings.md entry count" metrics.
 - **Agent B — Settings, hooks, permissions, MCP:** 2c, 2d. Also owns the settings/hooks/
-  `.mcp.json`/git-hooks portions of the inventory below, and the "MCP servers", "hooks
-  configured", "permissions", and "env vars" metrics.
+  `.mcp.json`/git-hooks portions of the inventory below, and the "MCP servers", "Number of
+  hooks", "permissions", and "env vars" metrics.
 - **Agent C — Skills, Headroom:** 2e, 2h. Also owns the skills/`.headroom/` portions of the
   inventory below, and the "number of skills" metric.
 
+This split is uneven by workload, not just by section count: 2c alone (permissions, hooks,
+git-hook-manager drift, sync-script version drift, secret scanning, env vars, auto-pull,
+`.claudeignore`) dwarfs 2e+2h combined, so Agent B will typically be the long pole among the
+three. That's an accepted tradeoff — the goal here is keeping the read-heavy work out of the
+main thread's context, not minimizing wall-clock — but if wall-clock ever does matter, splitting
+2c's sync-script/hook-manager checks into their own agent would balance it better.
+
 Launch all three in a single message, run in the foreground — Step 3 needs all three results and
 there's nothing else useful to do while waiting. Use `subagent_type: config-auditor` (bundled
-with this plugin at `agents/config-auditor.md`, sibling to this skill's own directory — it's
-restricted to `Read, Grep, Glob, Bash` with no `Write`/`Edit`, so "read-only" is an enforced tool
-restriction, not just a prompt instruction). If that agent type isn't available in the current
-environment (e.g. a bare copy of just this skill, without the rest of the plugin), fall back to
-`subagent_type: general-purpose` and carry the read-only/no-asking rules from `config-auditor.md`
-into the prompt explicitly, since a general-purpose agent won't have them by default.
+with this plugin at `agents/config-auditor.md`, sibling to this skill's own directory — it hard-
+blocks `Write`/`Edit` at the tool level, which is real enforcement for those two. Its "don't
+mutate anything via Bash" rule is still instruction-based, same as any other rule in this
+prompt — `Bash` can't be dropped since the checklist needs `wc`, `find`, `test -f`, `git log`,
+etc., and nothing stops a Bash call from writing a file other than the subagent following that
+instruction). If that agent type isn't available in the current environment (e.g. a bare copy of
+just this skill, without the rest of the plugin), fall back to `subagent_type: general-purpose`
+and carry the read-only/no-asking rules from `config-auditor.md` into the prompt explicitly,
+since a general-purpose agent won't have them by default.
 
 Each subagent's prompt must be self-contained, since it starts with no memory of this
 conversation:
