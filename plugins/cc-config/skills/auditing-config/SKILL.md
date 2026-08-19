@@ -33,18 +33,16 @@ and steer them.
 
 **Domain split.** Each `### 2x` heading below is tagged with its owner:
 
-- **Agent A — CLAUDE.md, context, cross-file consistency:** 2a, 2a-bis, 2b, 2f, 2g, 2i, plus the
-  "CLAUDE.md word count", "`@`-import count", and "learnings.md entry count" metrics.
-- **Agent B — Settings, hooks, permissions, MCP:** 2c, 2d, plus the "MCP servers", "Number of
-  hooks", "permissions", and "env vars" metrics.
-- **Agent C — Skills, Headroom:** 2e, 2h, plus the "number of skills" metric.
+- **Agent A — CLAUDE.md, context, cross-file consistency:** 2a, 2a-bis, 2b, 2f, 2g, 2i.
+- **Agent B — Settings, hooks, permissions, MCP:** 2c, 2d.
+- **Agent C — Skills, Headroom:** 2e, 2h.
 
-Every bullet under **Configuration files** and **Project context** below is tagged `(A)`, `(B)`,
-or `(C)` the same way — that's each agent's full inventory scope, not just the `### 2x` sections.
-Where a bullet is tagged for one agent but another agent's section also touches it in passing
-(e.g. 2e's context-scope checks glancing at `context/`, which Agent A otherwise owns), the owning
-agent's report is authoritative; the other agent may note it needs a quick peek rather than
-re-inventorying it in full.
+Every bullet under **Configuration files**, **Project context**, and **Current state metrics**
+below is tagged `(A)`, `(B)`, or `(C)` the same way — that's each agent's full inventory scope,
+not just the `### 2x` sections. Where a bullet is tagged for one agent but another agent's
+section also touches it in passing (e.g. 2e's context-scope checks glancing at `context/`, which
+Agent A otherwise owns), the owning agent's report is authoritative; the other agent may note it
+needs a quick peek rather than re-inventorying it in full.
 
 This split is uneven by workload, not just by section count: 2c alone (permissions, hooks,
 git-hook-manager drift, sync-script version drift, secret scanning, env vars, auto-pull,
@@ -133,14 +131,14 @@ a hard boundary.
 
 Count and report:
 
-- CLAUDE.md word count via `wc -w` (a token-density proxy; line count alone doesn't reflect token load since line length varies) — target ~300–600 words for a lean project-root file, higher only if `@`-imports carry the bulk of the detail out of the main file
-- Number of `@`-imports in CLAUDE.md
-- Number of active MCP servers
-- Number of skills
-- Number of hooks
-- Permissions: what's allowed, what's denied
-- Environment variables set in settings.json
-- Number of entries in `.claude/learnings.md` (if it exists)
+- CLAUDE.md word count via `wc -w` (a token-density proxy; line count alone doesn't reflect token load since line length varies) — target ~300–600 words for a lean project-root file, higher only if `@`-imports carry the bulk of the detail out of the main file (A)
+- Number of `@`-imports in CLAUDE.md (A)
+- Number of active MCP servers (B)
+- Number of skills (C)
+- Number of hooks (B)
+- Permissions: what's allowed, what's denied (B)
+- Environment variables set in settings.json (B)
+- Number of entries in `.claude/learnings.md` (if it exists) (A)
 
 ## Analysis checklist (2a–2i)
 

@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
 # sync-config-table-version: 7
+# This is the canonical copy, distributed into other projects by /bootstrapping-config and
+# refreshed in place by /auditing-config's version-drift check. Its scan logic is kept in sync
+# with cc-config's own dogfood copy at scripts/sync-config-table.sh, repo root (only this header
+# comment is expected to differ between the two). Any change to the version marker or a find
+# pattern must be mirrored there too, or the two will silently diverge and this repo will start
+# flagging itself as stale.
 # Keeps the "Key Config Files" table in CLAUDE.md in sync with the filesystem.
 # - Removes rows for files that no longer exist
 # - Appends rows for new config files with a placeholder description
