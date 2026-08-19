@@ -1,7 +1,7 @@
 ---
 name: auditing-config
 description: Audit and optimize an existing Claude Code configuration against current best practices. Use this skill when a user asks to review, improve, clean up, or optimize their Claude Code setup, CLAUDE.md, settings, hooks, MCP servers, or skills. Also use when the user says things like "check my config", "is my CLAUDE.md too long", "reduce token costs", "tighten permissions", or "my Claude Code setup feels bloated". This skill assumes the project has code, and possibly documentation or OpenSpec specs, that inform the optimization.
-allowed-tools: Read, Write, Edit, Bash, Grep, Glob
+allowed-tools: Read, Write, Edit, Bash, Grep, Glob, Task
 argument-hint: "[optional: specific area to focus on, e.g. 'CLAUDE.md', 'hooks', 'costs']"
 ---
 
@@ -21,9 +21,48 @@ If `.claude/learnings.md` exists, read all entries and apply them silently to in
 
 If the file does not exist, proceed without mention.
 
-## Step 1: Full inventory
+## Step 1–2: Inventory and analysis (parallel subagents)
 
-Read and catalog everything that exists. Do this thoroughly before suggesting any changes.
+Step 1 (inventory) and Step 2 (analysis) below are read-heavy — dozens of files whose content
+only matters as input to three tiered findings lists. Doing all of that reading in the main
+conversation burns exactly the context budget this skill exists to protect. Delegate it to
+three parallel, read-only subagents instead — one per domain — and keep only their condensed
+findings in the main context. This follows the Explore → Plan → Act pattern: the interactive
+approval (Step 3) and the actual edits (Step 4) stay in the main thread, where the user can see
+and steer them.
+
+**Domain split.** Each `### 2x` heading below is tagged with its owner:
+
+- **Agent A — CLAUDE.md, context, cross-file consistency:** 2a, 2a-bis, 2b, 2f, 2g, 2i. Also
+  owns the CLAUDE.md/AGENTS.md/context-file/learnings.md portions of the inventory below, and
+  the "CLAUDE.md word count", "`@`-import count", and "learnings.md entry count" metrics.
+- **Agent B — Settings, hooks, permissions, MCP:** 2c, 2d. Also owns the settings/hooks/
+  `.mcp.json`/git-hooks portions of the inventory below, and the "MCP servers", "hooks
+  configured", "permissions", and "env vars" metrics.
+- **Agent C — Skills, Headroom:** 2e, 2h. Also owns the skills/`.headroom/` portions of the
+  inventory below, and the "number of skills" metric.
+
+Launch all three in a single message (`subagent_type: general-purpose`, run in the foreground —
+Step 3 needs all three results and there's nothing else useful to do while waiting). Each
+subagent's prompt must be self-contained, since it starts with no memory of this conversation:
+
+- The absolute project root path, and `$ARGUMENTS` if the user specified a focus area (it
+  should still scan everything for its domain, just prioritize that area).
+- The learnings recalled in Step 0, so they inform its analysis.
+- An instruction to read `plugins/cc-config/skills/auditing-config/SKILL.md` — specifically the
+  inventory bullets and `### 2x` sections tagged with its own letter — before scanning, so the
+  checklist lives in exactly one place and never drifts out of sync with what the subagent does.
+- That it is read-only: no edits, no writes, no asking the user anything — just report back.
+- The exact output shape: the inventory metrics it owns, plus its findings pre-sorted into
+  must-fix / should-fix / nice-to-have, each as issue + why it matters + proposed fix + file:line
+  reference where applicable. For any finding that needs a diff shown to the user before a
+  decision (e.g. the sync-script version check in 2c), include the actual diff text in the
+  report — the main thread will not re-derive it.
+
+When all three return, merge their metrics and findings lists before continuing to Step 3. If a
+subagent's report is ambiguous or incomplete on some point, it's fine to read that one file
+yourself in the main thread rather than re-dispatching — delegation is an optimization here, not
+a hard boundary.
 
 ### Configuration files
 
@@ -73,9 +112,11 @@ Count and report:
 
 ## Step 2: Analyze against best practices
 
-Work through each area systematically. If `$ARGUMENTS` specified a focus area, prioritize that but still scan everything.
+(Performed by the three subagents dispatched in Step 1–2, one section-group each. The
+descriptions below are their instructions — read directly by each subagent, not restated in its
+prompt.)
 
-### 2a: CLAUDE.md audit
+### 2a: CLAUDE.md audit (Agent A)
 
 Check for these anti-patterns:
 
@@ -114,7 +155,7 @@ Check for these anti-patterns:
 - For each file path referenced (via `@`-import, the `## Context files` table, or inline mention outside those two), verify with `test -f` that it resolves. Flag broken references.
 - Flag stack/version claims that contradict the actual dependency manifest (e.g., CLAUDE.md says "Node 16" but `package.json` `engines` says `>=20`).
 
-### 2a-bis: Key Config Files table hygiene
+### 2a-bis: Key Config Files table hygiene (Agent A)
 
 `sync-config-table.sh` (v5+) can only judge whether a file is _config-shaped_ (it matched a
 scanned directory/extension) — never whether it's _important enough_ for a lean CLAUDE.md to
@@ -150,14 +191,14 @@ check every audit:
   stale-TODO finding above (write the real description, don't leave it).
 - Otherwise leave the entry as-is; don't re-litigate a still-valid exclusion every audit.
 
-### 2b: AGENTS.md audit
+### 2b: AGENTS.md audit (Agent A)
 
 - Does it exist? Should it? (yes if multiple AI tools are used in the project)
 - Is it genuinely tool-agnostic? (no Claude-specific features like `@`-imports inside AGENTS.md)
 - Does it cover: setup commands, architecture boundaries, code style, testing, safety?
 - Is there unnecessary duplication between AGENTS.md and CLAUDE.md?
 
-### 2c: Settings audit
+### 2c: Settings audit (Agent B)
 
 **Permissions:**
 
@@ -239,7 +280,7 @@ Flag as "nice to have" if the repo is small and tidy but could benefit from excl
 
 Run `/context` in a fresh session to get the current startup token count — if it exceeds ~10,000 tokens before any user message, a missing `.claudeignore` is a likely contributor.
 
-### 2d: MCP audit
+### 2d: MCP audit (Agent B)
 
 - How many servers are active? (5–10 is the sweet spot for most projects)
 - Are all servers actually used? Check if they match the project's real needs.
@@ -248,7 +289,7 @@ Run `/context` in a fresh session to get the current startup token count — if 
 - Could any MCP server be replaced by a simpler CLI tool? (e.g., `gh` CLI instead of GitHub MCP for basic operations — no permanent context overhead)
 - Is Tool Search / deferred tool loading active? Current Claude Code models can defer MCP tool schemas and fetch them on demand once tool descriptions get large — the exact model gating and threshold aren't reliably documented, so don't cite specific numbers; just note whether the project's tool count is small enough that this isn't a concern, or large enough to be worth checking.
 
-### 2e: Skills audit
+### 2e: Skills audit (Agent C)
 
 - Are there skills that duplicate CLAUDE.md content? → Deduplicate.
 - Are skills with side effects (deploy, commit, publish) using `disable-model-invocation: true`?
@@ -267,7 +308,7 @@ Run `/context` in a fresh session to get the current startup token count — if 
   - **Vague summaries** (soft check — human judgment): a summary too generic to act as a relevance signal, e.g. "Writing style guidelines for the company" instead of "Formal German, em-dash preferred, no exclamation marks — all corporate copy." Flag as a suggestion, not a hard rule.
 - Does each skill end with a feedback step? A skill that closes by asking "Did this output meet your expectations? If not, I'll log a correction to `.claude/learnings.md`" makes the learnings loop active rather than passive — corrections are solicited at the point of delivery, not just accumulated from future mishaps. Flag absent feedback steps as "nice to have."
 
-### 2f: Multi-tool consistency check
+### 2f: Multi-tool consistency check (Agent A)
 
 If the project uses multiple AI tool directories:
 
@@ -275,7 +316,7 @@ If the project uses multiple AI tool directories:
 - Are there contradictions between tool-specific configs?
 - Is duplicated content maintained in sync, or is it drifting?
 
-### 2g: Learnings review
+### 2g: Learnings review (Agent A)
 
 If `.claude/learnings.md` exists:
 
@@ -297,7 +338,7 @@ When the user corrects a mistake or points out a recurring issue, append a one-l
 summary to .claude/learnings.md. Don't modify CLAUDE.md directly.
 ```
 
-### 2h: Headroom audit
+### 2h: Headroom audit (Agent C)
 
 Headroom is an optional in-flight compression layer that reduces context window usage by compressing tool outputs, Bash results, logs, and code before they reach the model — a different optimization level from env vars and `.claudeignore`, which operate at startup and configuration time.
 
@@ -326,7 +367,7 @@ Add to "Nice to have." Do **not** add if Python is unavailable or below 3.10, or
 
 Skip. Do not mention Headroom.
 
-### 2i: Cross-file duplication (hierarchical CLAUDE.md trees)
+### 2i: Cross-file duplication (hierarchical CLAUDE.md trees) (Agent A)
 
 Relevant when a project uses multiple CLAUDE.md files across folder levels (common with the cc-content context-TOC pattern) — Claude Code auto-loads every CLAUDE.md up the directory chain, so content should live once at the shallowest level it applies to.
 
@@ -337,6 +378,10 @@ Relevant when a project uses multiple CLAUDE.md files across folder levels (comm
 5. Flag true duplicates: content should move to the shallowest common ancestor; deeper-level files should only add what's specific to that scope.
 
 ## Step 3: Generate findings report
+
+Merge the three subagents' findings and metrics (see Step 1–2) into one set before organizing.
+Don't re-derive what they already reported — only re-check a specific point yourself if a
+report was ambiguous or incomplete there.
 
 Organize findings into three categories:
 
@@ -403,6 +448,9 @@ score = max(0, 100 − 10 × must_fix_count − 4 × should_fix_count − 1 × n
 Report this score once now (the "before" score) and again in Step 5 after approved changes are applied (the "after" score), so the user sees a concrete before/after (e.g. "Config health: 62/100 → 91/100") rather than only a word-count delta.
 
 ## Step 4: Apply approved changes
+
+The subagents in Step 1–2 only read files and reported findings — their reads don't carry over
+to this thread's tool state. Read a file yourself here before editing it, same as any other edit.
 
 Make the approved changes. For each file modified:
 
