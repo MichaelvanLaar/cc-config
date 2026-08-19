@@ -51,8 +51,12 @@ three. That's an accepted tradeoff — the goal here is keeping the read-heavy w
 main thread's context, not minimizing wall-clock — but if wall-clock ever does matter, splitting
 2c's sync-script/hook-manager checks into their own agent would balance it better.
 
-Launch all three in a single message, run in the foreground — Step 3 needs all three results and
-there's nothing else useful to do while waiting. Use `subagent_type: cc-config:config-auditor`
+Launch all three in a single message. In an interactive session with fork mode on (the default),
+Claude Code runs dispatched subagents in the background regardless — there's no `run_in_background`
+parameter to request the foreground in that mode, so don't try to force one. That's fine here:
+just don't start Step 3 until all three have actually returned their results. There's nothing
+else useful to do in the meantime, so waiting for all three costs nothing. Use
+`subagent_type: cc-config:config-auditor`
 (the plugin-scoped name — plugin agents resolve as `plugin-name:agent-name`, not the bare
 filename; bundled with this plugin at `agents/config-auditor.md`, sibling to this skill's own
 directory — it hard-blocks `Write`/`Edit` at the tool level, which is real enforcement for those
@@ -342,7 +346,7 @@ Run `/context` in a fresh session to get the current startup token count — if 
   - **Duplicates**: two rows share the same Label or the same File path.
   - **Vague summaries** (soft check — human judgment): a summary too generic to act as a relevance signal, e.g. "Writing style guidelines for the company" instead of "Formal German, em-dash preferred, no exclamation marks — all corporate copy." Flag as a suggestion, not a hard rule.
 - Does each skill end with a feedback step? A skill that closes by asking "Did this output meet your expectations? If not, I'll log a correction to `.claude/learnings.md`" makes the learnings loop active rather than passive — corrections are solicited at the point of delivery, not just accumulated from future mishaps. Flag absent feedback steps as "nice to have."
-- For each custom subagent in `.claude/agents/*.md`: is it actually referenced anywhere (grep skills, hooks, and CLAUDE.md for its name in an `Agent(...)`/`subagent_type:` context)? An unreferenced custom agent is dead weight the same way an unused MCP server is. Does its `tools:` allowlist match what it actually needs — a subagent with side effects (writes, deploys) granted `Write`/`Edit`/`Bash` it doesn't use is worth flagging the same way an overbroad skill `allowed-tools` list would be.
+- For each custom subagent in `.claude/agents/*.md` (project-local) or, in a plugin repo, `plugins/*/agents/*.md` (plugin-bundled): is it actually referenced anywhere (grep skills, hooks, and CLAUDE.md for its name in an `Agent(...)`/`subagent_type:` context — for a plugin-bundled agent, that's its plugin-scoped `plugin-name:agent-name` form)? An unreferenced custom agent is dead weight the same way an unused MCP server is. Does its `tools:` allowlist match what it actually needs — a subagent with side effects (writes, deploys) granted `Write`/`Edit`/`Bash` it doesn't use is worth flagging the same way an overbroad skill `allowed-tools` list would be.
 
 ### 2f: Multi-tool consistency check (Agent A)
 
