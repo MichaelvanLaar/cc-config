@@ -50,14 +50,16 @@ main thread's context, not minimizing wall-clock — but if wall-clock ever does
 2c's sync-script/hook-manager checks into their own agent would balance it better.
 
 Launch all three in a single message, run in the foreground — Step 3 needs all three results and
-there's nothing else useful to do while waiting. Use `subagent_type: config-auditor` (bundled
-with this plugin at `agents/config-auditor.md`, sibling to this skill's own directory — it hard-
-blocks `Write`/`Edit` at the tool level, which is real enforcement for those two. Its "don't
-mutate anything via Bash" rule is still instruction-based, same as any other rule in this
-prompt — `Bash` can't be dropped since the checklist needs `wc`, `find`, `test -f`, `git log`,
-etc., and nothing stops a Bash call from writing a file other than the subagent following that
-instruction). If that agent type isn't available in the current environment (e.g. a bare copy of
-just this skill, without the rest of the plugin), fall back to `subagent_type: general-purpose`
+there's nothing else useful to do while waiting. Use `subagent_type: cc-config:config-auditor`
+(the plugin-scoped name — plugin agents resolve as `plugin-name:agent-name`, not the bare
+filename; bundled with this plugin at `agents/config-auditor.md`, sibling to this skill's own
+directory — it hard-blocks `Write`/`Edit` at the tool level, which is real enforcement for those
+two. Its "don't mutate anything via Bash" rule is still instruction-based, same as any other rule
+in this prompt — `Bash` can't be dropped since the checklist needs `wc`, `find`, `test -f`,
+`git log`, etc., and nothing stops a Bash call from writing a file other than the subagent
+following that instruction). If that agent type isn't available in the current environment (e.g.
+a bare copy of just this skill, without the rest of the plugin), fall back to
+`subagent_type: general-purpose`
 and carry the read-only/no-asking rules from `config-auditor.md` into the prompt explicitly,
 since a general-purpose agent won't have them by default.
 
