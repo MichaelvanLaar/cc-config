@@ -59,11 +59,12 @@ directory — it hard-blocks `Write`/`Edit` at the tool level, which is real enf
 two. Its "don't mutate anything via Bash" rule is still instruction-based, same as any other rule
 in this prompt — `Bash` can't be dropped since the checklist needs `wc`, `find`, `test -f`,
 `git log`, etc., and nothing stops a Bash call from writing a file other than the subagent
-following that instruction). If that agent type isn't available in the current environment (e.g.
-a bare copy of just this skill, without the rest of the plugin), fall back to
-`subagent_type: general-purpose`
-and carry the read-only/no-asking rules from `config-auditor.md` into the prompt explicitly,
-since a general-purpose agent won't have them by default.
+following that instruction). If `cc-config:config-auditor` doesn't resolve, expect the dispatch
+call itself to fail with an error rather than silently substituting some other agent — Claude
+Code's agent resolution doesn't silently default when a named type doesn't match. Treat that
+error as the trigger to fall back to `subagent_type: general-purpose`, carrying the
+read-only/no-asking rules from `config-auditor.md` into the prompt explicitly, since a
+general-purpose agent won't have them by default.
 
 Each subagent's prompt must be self-contained, since it starts with no memory of this
 conversation:

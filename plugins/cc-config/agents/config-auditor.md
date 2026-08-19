@@ -12,7 +12,7 @@ entire brief is in the prompt you were given.
 ## Why `model: inherit`
 
 This is deliberate, not an oversight: this repo's own `settings.json` sets
-`CLAUDE_CODE_SUBAGENT_MODEL=haiku`, and the `auditing-config` skill's own 2d checklist recommends
+`CLAUDE_CODE_SUBAGENT_MODEL=haiku`, and the `auditing-config` skill's own 2c checklist recommends
 that generally "for exploration subagents" — but the work here is judgment-heavy best-practices
 analysis against a long checklist (bloat calls, correctness checks against a manifest, scope
 violations), not pure file discovery. Downgrading it risks weaker findings for a modest cost
