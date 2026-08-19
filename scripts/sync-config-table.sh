@@ -120,7 +120,10 @@ if [[ -d "$ROOT/.claude/agents" ]]; then
   done < <(find "$ROOT/.claude/agents" -maxdepth 1 -name '*.md' -type f -print0 2>/dev/null | sort -z)
 fi
 
-# plugins/ manifests, skills, and bundled hooks (plugin repos)
+# plugins/ manifests, skills, and bundled hooks (plugin repos). No -maxdepth here, matching the
+# existing plugin.json/SKILL.md/hooks patterns below — a plugin's own layout under plugins/<name>/
+# can nest arbitrarily, so */agents/*.md is deliberately as loose as its siblings in this find,
+# unlike the maxdepth-1 .claude/agents/ scan above (a flat, single-project directory).
 if [[ -d "$ROOT/plugins" ]]; then
   while IFS= read -r -d '' f; do
     relpath="${f#$ROOT/}"
