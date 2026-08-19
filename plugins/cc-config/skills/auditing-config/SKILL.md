@@ -42,22 +42,38 @@ and steer them.
 - **Agent C — Skills, Headroom:** 2e, 2h. Also owns the skills/`.headroom/` portions of the
   inventory below, and the "number of skills" metric.
 
-Launch all three in a single message (`subagent_type: general-purpose`, run in the foreground —
-Step 3 needs all three results and there's nothing else useful to do while waiting). Each
-subagent's prompt must be self-contained, since it starts with no memory of this conversation:
+Launch all three in a single message, run in the foreground — Step 3 needs all three results and
+there's nothing else useful to do while waiting. Use `subagent_type: config-auditor` (bundled
+with this plugin at `agents/config-auditor.md`, sibling to this skill's own directory — it's
+restricted to `Read, Grep, Glob, Bash` with no `Write`/`Edit`, so "read-only" is an enforced tool
+restriction, not just a prompt instruction). If that agent type isn't available in the current
+environment (e.g. a bare copy of just this skill, without the rest of the plugin), fall back to
+`subagent_type: general-purpose` and carry the read-only/no-asking rules from `config-auditor.md`
+into the prompt explicitly, since a general-purpose agent won't have them by default.
+
+Each subagent's prompt must be self-contained, since it starts with no memory of this
+conversation:
 
 - The absolute project root path, and `$ARGUMENTS` if the user specified a focus area (it
   should still scan everything for its domain, just prioritize that area).
 - The learnings recalled in Step 0, so they inform its analysis.
-- An instruction to read `plugins/cc-config/skills/auditing-config/SKILL.md` — specifically the
-  inventory bullets and `### 2x` sections tagged with its own letter — before scanning, so the
-  checklist lives in exactly one place and never drifts out of sync with what the subagent does.
-- That it is read-only: no edits, no writes, no asking the user anything — just report back.
+- **The checklist it should follow.** Resolve the absolute path of _this_ SKILL.md as it was
+  loaded into your own context this session (you read it, or the skill system loaded it — either
+  way you have its real filesystem path; don't assume a repo-relative path like
+  `plugins/cc-config/skills/auditing-config/SKILL.md`, which only resolves when running from
+  inside the `cc-config` repo itself and will 404 for the normal case of an installed plugin
+  auditing some other project). Point the subagent at that resolved absolute path, and tell it
+  which inventory bullets and `### 2x` sections (tagged with its own letter) to read there — so
+  the checklist lives in exactly one place and never drifts out of sync with what the subagent
+  does. If you can't confidently resolve the absolute path, don't guess: inline the exact
+  checklist bullets/sections for that agent's letter directly into its prompt instead, so nothing
+  is lost.
 - The exact output shape: the inventory metrics it owns, plus its findings pre-sorted into
   must-fix / should-fix / nice-to-have, each as issue + why it matters + proposed fix + file:line
-  reference where applicable. For any finding that needs a diff shown to the user before a
-  decision (e.g. the sync-script version check in 2c), include the actual diff text in the
-  report — the main thread will not re-derive it.
+  reference where applicable. Wherever its checklist says to ask the user, present something to
+  them, or wait for approval (e.g. the sync-script diff in 2c, or the grouped promote/delete list
+  in 2g) — it can't do any of that, so it should fold the exact content (the diff, the grouped
+  list) into its report instead, for the main thread to relay in Step 3.
 
 When all three return, merge their metrics and findings lists before continuing to Step 3. If a
 subagent's report is ambiguous or incomplete on some point, it's fine to read that one file
@@ -110,11 +126,11 @@ Count and report:
 - Environment variables set in settings.json
 - Number of entries in `.claude/learnings.md` (if it exists)
 
-## Step 2: Analyze against best practices
+## Analysis checklist (2a–2i)
 
-(Performed by the three subagents dispatched in Step 1–2, one section-group each. The
-descriptions below are their instructions — read directly by each subagent, not restated in its
-prompt.)
+This is Step 2, analysis against best practices, performed by the three subagents dispatched in
+Step 1–2 above — one section-group each, per the domain split. The descriptions below are their
+instructions, read directly by each subagent rather than restated in its prompt.
 
 ### 2a: CLAUDE.md audit (Agent A)
 
