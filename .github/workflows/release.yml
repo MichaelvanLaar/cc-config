@@ -9,6 +9,6 @@ permissions:
 
 jobs:
   release:
-    uses: clever-cc-plugins/.github/.github/workflows/plugin-release.yml@main
+    uses: clever-cc-plugins/.github/.github/workflows/plugin-release.yml@v1
     permissions:
       contents: write
