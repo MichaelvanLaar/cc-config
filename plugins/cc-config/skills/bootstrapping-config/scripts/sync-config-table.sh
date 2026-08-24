@@ -1,12 +1,11 @@
 #!/usr/bin/env bash
-# sync-config-table-version: 8
+# sync-config-table-version: 9
 # This is the canonical copy, distributed into other projects by /bootstrapping-config and
 # refreshed in place by /auditing-config's version-drift check. Its scan logic is kept in sync
 # with cc-config's own dogfood copy at scripts/sync-config-table.sh, repo root (only this header
 # comment is expected to differ between the two). Any change to the version marker or a find
 # pattern must be mirrored there too, or the two will silently diverge and this repo will start
 # flagging itself as stale.
-# Keeps the "Key Config Files" table in CLAUDE.md in sync with the filesystem.
 # - Removes rows for files that no longer exist
 # - Appends rows for new config files with a placeholder description
 # - Excludes gitignored files (they are per-machine, not part of the committed state)
@@ -228,10 +227,34 @@ for file in "${sorted_files[@]}"; do
 done
 
 # Replace the table in CLAUDE.md
-# Find the section, skip old blank lines + table rows, emit new table
+# Find the section, skip old blank lines + table rows, emit new table.
+# The section only ends at the next heading (or EOF) — not at the first
+# non-table line — because a marker comment (e.g. the `last-optimize-run`
+# HTML comment) is allowed to sit between the table and the next heading.
+# Non-heading, non-table lines encountered in the section (like that marker)
+# are buffered in extra_lines and replayed after the rebuilt table, so stray
+# old table rows that end up after such a marker are still recognized as
+# table content and deduplicated rather than copied through verbatim forever.
 tmpfile="$(mktemp)"
 in_section=false
 table_replaced=false
+extra_lines=()
+extra_started=false
+
+flush_table() {
+  echo "" >> "$tmpfile"
+  echo "$new_table" >> "$tmpfile"
+  # Trailing blank lines can accumulate in extra_lines when blank lines
+  # precede the section-ending heading/EOF — drop them so we don't emit a
+  # double blank before the heading this function goes on to print.
+  while ((${#extra_lines[@]})) && [[ "${extra_lines[-1]}" == "" ]]; do
+    unset 'extra_lines[-1]'
+  done
+  if ((${#extra_lines[@]})); then
+    echo "" >> "$tmpfile"
+    printf '%s\n' "${extra_lines[@]}" >> "$tmpfile"
+  fi
+}
 
 while IFS= read -r line; do
   line="${line%$cr}"
@@ -242,17 +265,31 @@ while IFS= read -r line; do
   fi
 
   if $in_section && ! $table_replaced; then
-    # Skip blank lines and old table rows between heading and next content
-    if [[ "$line" == "" ]] || [[ "$line" == "|"* ]]; then
+    # Skip old table rows anywhere in the section
+    if [[ "$line" == "|"* ]]; then
       continue
     fi
-    # First non-blank, non-table line: emit new table, then this line
-    echo "" >> "$tmpfile"
-    echo "$new_table" >> "$tmpfile"
-    echo "" >> "$tmpfile"
-    echo "$line" >> "$tmpfile"
-    table_replaced=true
-    in_section=false
+    if [[ "$line" == "" ]]; then
+      # Blank lines directly after the table (before any preserved extra
+      # content) are pure table/heading spacing — drop them; flush_table
+      # re-inserts the right spacing. Once we're inside preserved extra
+      # content, keep blank lines so their internal spacing survives.
+      $extra_started && extra_lines+=("")
+      continue
+    fi
+    if [[ "$line" == "#"* ]]; then
+      # Next heading: section ends here — emit new table, buffered extras, then this heading
+      flush_table
+      echo "" >> "$tmpfile"
+      echo "$line" >> "$tmpfile"
+      table_replaced=true
+      in_section=false
+      continue
+    fi
+    # Non-table, non-heading line (e.g. a marker comment): preserve it after
+    # the table, but keep scanning — the section isn't over yet.
+    extra_lines+=("$line")
+    extra_started=true
     continue
   fi
 
@@ -261,8 +298,7 @@ done < "$CLAUDE_MD"
 
 # If we hit EOF while still in the section (table is the last thing)
 if $in_section && ! $table_replaced; then
-  echo "" >> "$tmpfile"
-  echo "$new_table" >> "$tmpfile"
+  flush_table
 fi
 
 # Normalize the candidate the same way the PostToolUse formatter normalizes
