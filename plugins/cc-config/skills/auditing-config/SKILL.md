@@ -1,7 +1,7 @@
 ---
 name: auditing-config
 description: Audit and optimize an existing Claude Code configuration against current best practices. Use this skill when a user asks to review, improve, clean up, or optimize their Claude Code setup, CLAUDE.md, settings, hooks, MCP servers, or skills. Also use when the user says things like "check my config", "is my CLAUDE.md too long", "reduce token costs", "tighten permissions", or "my Claude Code setup feels bloated". This skill assumes the project has code, and possibly documentation or OpenSpec specs, that inform the optimization.
-allowed-tools: Read, Write, Edit, Bash, Grep, Glob, Agent
+allowed-tools: Read, Write, Edit, Bash, Grep, Glob
 argument-hint: "[optional: specific area to focus on, e.g. 'CLAUDE.md', 'hooks', 'costs']"
 ---
 
@@ -21,147 +21,75 @@ If `.claude/learnings.md` exists, read all entries and apply them silently to in
 
 If the file does not exist, proceed without mention.
 
-## Step 1–2: Inventory and analysis (parallel subagents)
+## Step 1–2: Inventory and analysis
 
 Step 1 (inventory) and Step 2 (analysis) below are read-heavy — dozens of files whose content
-only matters as input to three tiered findings lists. Doing all of that reading in the main
-conversation burns exactly the context budget this skill exists to protect. Delegate it to
-three parallel, read-only subagents instead — one per domain — and keep only their condensed
-findings in the main context. This follows the Explore → Plan → Act pattern: the interactive
-approval (Step 3) and the actual edits (Step 4) stay in the main thread, where the user can see
-and steer them.
+feeds into three tiered findings lists. Do this reading directly, in the main conversation:
+work through the checklist sections in order, read each file as you reach it, and keep running
+notes of the metrics and findings as you go rather than re-reading anything. The interactive
+approval (Step 3) and the actual edits (Step 4) happen afterward, in the same thread, so the
+user can see and steer them.
 
-**Domain split.** Each `### 2x` heading below is tagged with its owner:
+If `$ARGUMENTS` specifies a focus area, still work through every section below, but prioritize
+reading and depth on the sections that match it.
 
-- **Agent A — CLAUDE.md, context, cross-file consistency:** 2a, 2a-bis, 2b, 2f, 2g, 2i.
-- **Agent B — Settings, hooks, permissions, MCP:** 2c, 2d.
-- **Agent C — Skills, Headroom:** 2e, 2h.
-
-Every bullet under **Configuration files**, **Project context**, and **Current state metrics**
-below is tagged `(A)`, `(B)`, or `(C)` the same way — that's each agent's full inventory scope,
-not just the `### 2x` sections. Where a bullet is tagged for one agent but another agent's
-section also touches it in passing (e.g. 2e's context-scope checks glancing at `context/`, which
-Agent A otherwise owns), the owning agent's report is authoritative; the other agent may note it
-needs a quick peek rather than re-inventorying it in full.
-
-This split is uneven by workload, not just by section count: 2c alone (permissions, hooks,
-git-hook-manager drift, sync-script version drift, secret scanning, env vars, auto-pull,
-`.claudeignore`) dwarfs 2e+2h combined, so Agent B will typically be the long pole among the
-three. That's an accepted tradeoff — the goal here is keeping the read-heavy work out of the
-main thread's context, not minimizing wall-clock — but if wall-clock ever does matter, splitting
-2c's sync-script/hook-manager checks into their own agent would balance it better.
-
-Launch all three in a single message. In an interactive session with fork mode on (the default),
-Claude Code runs dispatched subagents in the background regardless — there's no `run_in_background`
-parameter to request the foreground in that mode, so don't try to force one. That's fine here:
-just don't start Step 3 until all three have actually returned their results. There's nothing
-else useful to do in the meantime, so waiting for all three costs nothing. Use
-`subagent_type: cc-config:config-auditor`
-(the plugin-scoped name — plugin agents resolve as `plugin-name:agent-name`, not the bare
-filename; bundled with this plugin at `agents/config-auditor.md`, one level up from this skill's
-own directory — a sibling of the plugin's `skills/` directory, not of `skills/auditing-config/`
-itself — it hard-blocks `Write`/`Edit` at the tool level, which is real enforcement for those
-two. Its "don't mutate anything via Bash" rule is still instruction-based, same as any other rule
-in this prompt — `Bash` can't be dropped since the checklist needs `wc`, `find`, `test -f`,
-`git log`, etc., and nothing stops a Bash call from writing a file other than the subagent
-following that instruction). If `cc-config:config-auditor` doesn't resolve, expect the dispatch
-call itself to fail with an error rather than silently substituting some other agent — Claude
-Code's agent resolution doesn't silently default when a named type doesn't match. Treat that
-error as the trigger to fall back to `subagent_type: general-purpose`, carrying the
-read-only/no-asking rules from `config-auditor.md` into the prompt explicitly, since a
-general-purpose agent won't have them by default. Note that this fallback loses the tool-level
-`Write`/`Edit` block — `general-purpose` has full tool access, so on that path "read-only" is
-100% instruction-based for every tool, not just `Bash`, same risk profile `config-auditor.md` was
-built to reduce. It's still the right fallback (better than failing the whole audit), just not
-an equivalent guarantee.
-
-Each subagent's prompt must be self-contained, since it starts with no memory of this
-conversation:
-
-- The absolute project root path, and `$ARGUMENTS` if the user specified a focus area (it
-  should still scan everything for its domain, just prioritize that area).
-- The learnings recalled in Step 0, so they inform its analysis.
-- **The checklist it should follow.** Resolve the absolute path of _this_ SKILL.md as it was
-  loaded into your own context this session (you read it, or the skill system loaded it — either
-  way you have its real filesystem path; don't assume a repo-relative path like
-  `plugins/cc-config/skills/auditing-config/SKILL.md`, which only resolves when running from
-  inside the `cc-config` repo itself and will 404 for the normal case of an installed plugin
-  auditing some other project). Point the subagent at that resolved absolute path, and tell it
-  which inventory bullets and `### 2x` sections (tagged with its own letter) to read there — so
-  the checklist lives in exactly one place and never drifts out of sync with what the subagent
-  does. If you can't confidently resolve the absolute path, don't guess: inline the exact
-  checklist bullets/sections for that agent's letter directly into its prompt instead, so nothing
-  is lost.
-- The exact output shape: the inventory metrics it owns, plus its findings pre-sorted into
-  must-fix / should-fix / nice-to-have, each as issue + why it matters + proposed fix + file:line
-  reference where applicable. Wherever its checklist says to ask the user, present something to
-  them, or wait for approval (e.g. the sync-script diff in 2c, or the grouped promote/delete list
-  in 2g) — it can't do any of that, so it should fold the exact content (the diff, the grouped
-  list) into its report instead, for the main thread to relay in Step 3. The same applies to
-  checklist steps phrased as actions rather than questions — 2c's sync-script drift check says
-  "on confirmation, copy the plugin's file over the project's," a leftover from when this skill
-  was single-threaded and the same pass that analyzed also applied fixes. The subagent surfaces
-  that as a finding (with the diff); actually copying the file happens later, in this skill's own
-  Step 4, performed by the main thread after approval — never by the subagent.
-
-When all three return, merge their metrics and findings lists before continuing to Step 3. If a
-subagent's report is ambiguous or incomplete on some point, it's fine to read that one file
-yourself in the main thread rather than re-dispatching — delegation is an optimization here, not
-a hard boundary.
+The **Configuration files**, **Project context**, and **Current state metrics** bullets below
+are the inventory scope for Step 1. The `### 2x` sections that follow are the Step 2 analysis
+checklist — work through them in order (2a, 2a-bis, 2b, ... 2i), reading whatever each one
+needs as you reach it.
 
 ### Configuration files
 
-- `CLAUDE.md` (project root and any subdirectories) (A)
-- `AGENTS.md` (A)
-- `.claude/settings.json` and `.claude/settings.local.json` (B)
-- `.claude/local.md` (A)
-- `.claude/rules/*.md` (A)
-- `.claude/skills/*/SKILL.md` (C)
-- `.claude/commands/*.md` (legacy format) (C)
-- `.claude/agents/*.md` (C)
-- `.claude/learnings.md` (A)
-- `.headroom/` (machine-local Headroom data — check for presence: `ls .headroom 2>/dev/null && echo headroom-present || echo headroom-absent`) (C)
-- `context/` (domain context files at project root by convention — company profile, brand voice, architecture decisions, etc.; if CLAUDE.md's `## Context files` table registers a different location, use that instead) (A)
-- `context/design/` (Claude Design handoff artifacts — PROMPT.md, design-notes.md, screenshots/ — under the registered context location) (A)
-- `DESIGN.md` (root-level design system spec — YAML tokens + Markdown rationale; auto-read by Claude Code and other agents) (A)
-- `.mcp.json` (project root) (B)
-- `~/.claude/CLAUDE.md` (user level — read but don't modify without asking) (A)
-- `~/.claude.json` (user-level MCP — read but don't modify without asking) (B)
+- `CLAUDE.md` (project root and any subdirectories)
+- `AGENTS.md`
+- `.claude/settings.json` and `.claude/settings.local.json`
+- `.claude/local.md`
+- `.claude/rules/*.md`
+- `.claude/skills/*/SKILL.md`
+- `.claude/commands/*.md` (legacy format)
+- `.claude/agents/*.md`
+- `.claude/learnings.md`
+- `.headroom/` (machine-local Headroom data — check for presence: `ls .headroom 2>/dev/null && echo headroom-present || echo headroom-absent`)
+- `context/` (domain context files at project root by convention — company profile, brand voice, architecture decisions, etc.; if CLAUDE.md's `## Context files` table registers a different location, use that instead)
+- `context/design/` (Claude Design handoff artifacts — PROMPT.md, design-notes.md, screenshots/ — under the registered context location)
+- `DESIGN.md` (root-level design system spec — YAML tokens + Markdown rationale; auto-read by Claude Code and other agents)
+- `.mcp.json` (project root)
+- `~/.claude/CLAUDE.md` (user level — read but don't modify without asking)
+- `~/.claude.json` (user-level MCP — read but don't modify without asking)
 
 ### Project context
 
-- Package manager and dependencies (package.json, composer.json, Cargo.toml, etc.) (A)
-- Build/test/lint commands (scripts in package.json, Makefile targets, etc.) (A)
-- Formatter and linter configs (.prettierrc, .eslintrc, phpcs.xml, rustfmt.toml, etc.) (B)
-- CI/CD configuration (B)
-- Content-project artifacts: static-site configs (`hugo.toml`, `_config.yml`, `astro.config.*`, `mkdocs.yml`), prose tooling (`.vale.ini`, `.markdownlint.*`), shared knowledge bases or style guides referenced from CLAUDE.md (A)
-- OpenSpec artifacts (`openspec/` directory, `openspec/project.md`, change specs) (A)
-- Documentation (`docs/`, `README.md`, architecture docs) (A)
-- Directory structure and apparent architecture patterns (A)
-- Hook managers and their hook files (`.husky/`, `lefthook.yml`, `.pre-commit-config.yaml`) (B)
-- Project-local git hooks directory (`.githooks/`) and sync scripts (`scripts/sync-config-table.{sh,js}`) (B)
-- Design system artifacts: `DESIGN.md` at the project root (persistent design system spec); `context/design/` (or the registered context location's `design/` subfolder) for Claude Design handoff artifacts (PROMPT.md, design-notes.md, screenshots/) (A)
+- Package manager and dependencies (package.json, composer.json, Cargo.toml, etc.)
+- Build/test/lint commands (scripts in package.json, Makefile targets, etc.)
+- Formatter and linter configs (.prettierrc, .eslintrc, phpcs.xml, rustfmt.toml, etc.)
+- CI/CD configuration
+- Content-project artifacts: static-site configs (`hugo.toml`, `_config.yml`, `astro.config.*`, `mkdocs.yml`), prose tooling (`.vale.ini`, `.markdownlint.*`), shared knowledge bases or style guides referenced from CLAUDE.md
+- OpenSpec artifacts (`openspec/` directory, `openspec/project.md`, change specs)
+- Documentation (`docs/`, `README.md`, architecture docs)
+- Directory structure and apparent architecture patterns
+- Hook managers and their hook files (`.husky/`, `lefthook.yml`, `.pre-commit-config.yaml`)
+- Project-local git hooks directory (`.githooks/`) and sync scripts (`scripts/sync-config-table.{sh,js}`)
+- Design system artifacts: `DESIGN.md` at the project root (persistent design system spec); `context/design/` (or the registered context location's `design/` subfolder) for Claude Design handoff artifacts (PROMPT.md, design-notes.md, screenshots/)
 
 ### Current state metrics
 
 Count and report:
 
-- CLAUDE.md word count via `wc -w` (a token-density proxy; line count alone doesn't reflect token load since line length varies) — target ~300–600 words for a lean project-root file, higher only if `@`-imports carry the bulk of the detail out of the main file (A)
-- Number of `@`-imports in CLAUDE.md (A)
-- Number of active MCP servers (B)
-- Number of skills (C)
-- Number of hooks (B)
-- Permissions: what's allowed, what's denied (B)
-- Environment variables set in settings.json (B)
-- Number of entries in `.claude/learnings.md` (if it exists) (A)
+- CLAUDE.md word count via `wc -w` (a token-density proxy; line count alone doesn't reflect token load since line length varies) — target ~300–600 words for a lean project-root file, higher only if `@`-imports carry the bulk of the detail out of the main file
+- Number of `@`-imports in CLAUDE.md
+- Number of active MCP servers
+- Number of skills
+- Number of hooks
+- Permissions: what's allowed, what's denied
+- Environment variables set in settings.json
+- Number of entries in `.claude/learnings.md` (if it exists)
 
 ## Analysis checklist (2a–2i)
 
-This is Step 2, analysis against best practices, performed by the three subagents dispatched in
-Step 1–2 above — one section-group each, per the domain split. The descriptions below are their
-instructions, read directly by each subagent rather than restated in its prompt.
+This is Step 2, analysis against best practices, performed directly in the main thread. Work
+through each section below in order, reading whatever files it needs.
 
-### 2a: CLAUDE.md audit (Agent A)
+### 2a: CLAUDE.md audit
 
 Check for these anti-patterns:
 
@@ -200,7 +128,7 @@ Check for these anti-patterns:
 - For each file path referenced (via `@`-import, the `## Context files` table, or inline mention outside those two), verify with `test -f` that it resolves. Flag broken references.
 - Flag stack/version claims that contradict the actual dependency manifest (e.g., CLAUDE.md says "Node 16" but `package.json` `engines` says `>=20`).
 
-### 2a-bis: Key Config Files table hygiene (Agent A)
+### 2a-bis: Key Config Files table hygiene
 
 `sync-config-table.sh` (v5+) can only judge whether a file is _config-shaped_ (it matched a
 scanned directory/extension) — never whether it's _important enough_ for a lean CLAUDE.md to
@@ -236,14 +164,14 @@ check every audit:
   stale-TODO finding above (write the real description, don't leave it).
 - Otherwise leave the entry as-is; don't re-litigate a still-valid exclusion every audit.
 
-### 2b: AGENTS.md audit (Agent A)
+### 2b: AGENTS.md audit
 
 - Does it exist? Should it? (yes if multiple AI tools are used in the project)
 - Is it genuinely tool-agnostic? (no Claude-specific features like `@`-imports inside AGENTS.md)
 - Does it cover: setup commands, architecture boundaries, code style, testing, safety?
 - Is there unnecessary duplication between AGENTS.md and CLAUDE.md?
 
-### 2c: Settings audit (Agent B)
+### 2c: Settings audit
 
 **Permissions:**
 
@@ -302,7 +230,7 @@ This catches secrets committed by both Claude Code and the user. Unlike `permiss
 - Is `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` set? This only affects _proactive_ compaction, which itself only triggers under specific conditions (cloud sessions, `CLAUDE_CODE_AUTO_COMPACT_WINDOW` being set, or specific model versions without extended context). On a typical local session on the current default model, proactive compaction already applies at the model's own default threshold, so this override is very likely a no-op there. If you find it set on a plain local setup, flag it as probably-ineffective and not worth keeping. Only treat it as a legitimate, deliberate tuning if the project actually runs cloud sessions or an older model configuration where the override demonstrably applies.
 - Is `MAX_THINKING_TOKENS` set? Consider `10000` (down from the model's default cap of 31999) to lower the thinking-token cap. This reduces the ceiling, not necessarily actual usage — don't cite a specific savings percentage.
 - Is `CLAUDE_CODE_MAX_OUTPUT_TOKENS` set? Consider `16000` to prevent unnecessarily verbose responses.
-- Is `CLAUDE_CODE_SUBAGENT_MODEL` set? `haiku` meaningfully lowers cost for exploration subagents (Haiku pricing is a fraction of Sonnet/Opus) — avoid citing a specific percentage, it varies by workload. Note this env var overrides every subagent's own `model:` frontmatter, including `config-auditor` (used by this very skill's Step 1–2 dispatch) despite its `model: inherit` — if it's set, all three of this audit's own subagents already run on `haiku` regardless of that file, whether or not that's desired for judgment-heavy analysis work specifically.
+- Is `CLAUDE_CODE_SUBAGENT_MODEL` set? `haiku` meaningfully lowers cost for exploration subagents (Haiku pricing is a fraction of Sonnet/Opus) — avoid citing a specific percentage, it varies by workload. Note this env var overrides every subagent's own `model:` frontmatter, so check whether that's desired for any judgment-heavy analysis subagents the project itself defines.
 - Are `alwaysThinkingEnabled` and `effortLevel` (in `settings.json`, not `env`) set sensibly? These control thinking budget more directly than `MAX_THINKING_TOKENS` and independently of any autocompact override. `alwaysThinkingEnabled: true` at `effortLevel: high` pushes token usage per turn up substantially and can make context fill (and any compaction) happen far sooner than expected — flag this combination unless the user has a specific reason for always-on deep reasoning. Default recommendation: leave `alwaysThinkingEnabled` unset/`false` and `effortLevel` at `medium`.
 
 **Auto-pull on session start:**
@@ -325,7 +253,7 @@ Flag as "nice to have" if the repo is small and tidy but could benefit from excl
 
 Run `/context` in a fresh session to get the current startup token count — if it exceeds ~10,000 tokens before any user message, a missing `.claudeignore` is a likely contributor.
 
-### 2d: MCP audit (Agent B)
+### 2d: MCP audit
 
 - How many servers are active? (5–10 is the sweet spot for most projects)
 - Are all servers actually used? Check if they match the project's real needs.
@@ -334,7 +262,7 @@ Run `/context` in a fresh session to get the current startup token count — if 
 - Could any MCP server be replaced by a simpler CLI tool? (e.g., `gh` CLI instead of GitHub MCP for basic operations — no permanent context overhead)
 - Is Tool Search / deferred tool loading active? Current Claude Code models can defer MCP tool schemas and fetch them on demand once tool descriptions get large — the exact model gating and threshold aren't reliably documented, so don't cite specific numbers; just note whether the project's tool count is small enough that this isn't a concern, or large enough to be worth checking.
 
-### 2e: Skills audit (Agent C)
+### 2e: Skills audit
 
 - Are there skills that duplicate CLAUDE.md content? → Deduplicate.
 - Are skills with side effects (deploy, commit, publish) using `disable-model-invocation: true`?
@@ -354,7 +282,7 @@ Run `/context` in a fresh session to get the current startup token count — if 
 - Does each skill end with a feedback step? A skill that closes by asking "Did this output meet your expectations? If not, I'll log a correction to `.claude/learnings.md`" makes the learnings loop active rather than passive — corrections are solicited at the point of delivery, not just accumulated from future mishaps. Flag absent feedback steps as "nice to have."
 - For each custom subagent in `.claude/agents/*.md` (project-local) or, in a plugin repo, `plugins/*/agents/*.md` (plugin-bundled): is it actually referenced anywhere (grep skills, hooks, and CLAUDE.md for its name in an `Agent(...)`/`subagent_type:` context — for a plugin-bundled agent, that's its plugin-scoped `plugin-name:agent-name` form)? An unreferenced custom agent is dead weight the same way an unused MCP server is. Does its `tools:` allowlist match what it actually needs — a subagent with side effects (writes, deploys) granted `Write`/`Edit`/`Bash` it doesn't use is worth flagging the same way an overbroad skill `allowed-tools` list would be.
 
-### 2f: Multi-tool consistency check (Agent A)
+### 2f: Multi-tool consistency check
 
 If the project uses multiple AI tool directories:
 
@@ -362,7 +290,7 @@ If the project uses multiple AI tool directories:
 - Are there contradictions between tool-specific configs?
 - Is duplicated content maintained in sync, or is it drifting?
 
-### 2g: Learnings review (Agent A)
+### 2g: Learnings review
 
 If `.claude/learnings.md` exists:
 
@@ -384,7 +312,7 @@ When the user corrects a mistake or points out a recurring issue, append a one-l
 summary to .claude/learnings.md. Don't modify CLAUDE.md directly.
 ```
 
-### 2h: Headroom audit (Agent C)
+### 2h: Headroom audit
 
 Headroom is an optional in-flight compression layer that reduces context window usage by compressing tool outputs, Bash results, logs, and code before they reach the model — a different optimization level from env vars and `.claudeignore`, which operate at startup and configuration time.
 
@@ -413,7 +341,7 @@ Add to "Nice to have." Do **not** add if Python is unavailable or below 3.10, or
 
 Skip. Do not mention Headroom.
 
-### 2i: Cross-file duplication (hierarchical CLAUDE.md trees) (Agent A)
+### 2i: Cross-file duplication (hierarchical CLAUDE.md trees)
 
 Relevant when a project uses multiple CLAUDE.md files across folder levels (common with the cc-content context-TOC pattern) — Claude Code auto-loads every CLAUDE.md up the directory chain, so content should live once at the shallowest level it applies to.
 
@@ -425,11 +353,7 @@ Relevant when a project uses multiple CLAUDE.md files across folder levels (comm
 
 ## Step 3: Generate findings report
 
-Merge the three subagents' findings and metrics (see Step 1–2) into one set before organizing.
-Don't re-derive what they already reported — only re-check a specific point yourself if a
-report was ambiguous or incomplete there.
-
-Organize findings into three categories:
+Using the metrics and findings gathered in Step 1–2, organize findings into three categories:
 
 ### Must fix (security or correctness issues)
 
@@ -494,9 +418,6 @@ score = max(0, 100 − 10 × must_fix_count − 4 × should_fix_count − 1 × n
 Report this score once now (the "before" score) and again in Step 5 after approved changes are applied (the "after" score), so the user sees a concrete before/after (e.g. "Config health: 62/100 → 91/100") rather than only a word-count delta.
 
 ## Step 4: Apply approved changes
-
-The subagents in Step 1–2 only read files and reported findings — their reads don't carry over
-to this thread's tool state. Read a file yourself here before editing it, same as any other edit.
 
 Make the approved changes. For each file modified:
 
