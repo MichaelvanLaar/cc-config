@@ -16,7 +16,6 @@ Reusable Claude Code skills for configuration management, distributed as a Claud
 | `.github/workflows/claude.yml`                           | Trigger Claude via @claude mentions in issues/PRs                                                 |
 | `.github/workflows/release.yml`                          | Triggers shared plugin-release workflow — version bump + GitHub release — on push to main         |
 | `.gitignore`                                             | Git ignore patterns                                                                               |
-| `plugins/cc-config/agents/config-auditor.md`             | Custom subagent: tool-restricted (no Write/Edit) worker used by /auditing-config's parallel scans |
 | `plugins/cc-config/.claude-plugin/plugin.json`           | Plugin manifest for the cc-config plugin                                                          |
 | `plugins/cc-config/hooks/auto-git-pull.sh`               | SessionStart hook: opt-in fetch + fast-forward pull at session start (CC_CONFIG_AUTO_GIT_PULL)    |
 | `plugins/cc-config/hooks/check-optimize-staleness.sh`    | SessionStart hook: nudges to run /auditing-config when a project has drifted since its last audit |
